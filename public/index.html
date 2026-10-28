@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mafia Online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Hanken+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="day">
+<main id="home" class="screen">
+  <h1>Mafia</h1>
+  <p class="sub">Play with friends on any device. No sign-up.</p>
+  <input id="name" placeholder="Your name" maxlength="16" autocomplete="off">
+  <button id="create" class="primary">Create a room</button>
+  <div class="or">or join a friend's room</div>
+  <input id="code" placeholder="Room code" maxlength="4" autocomplete="off">
+  <button id="join">Join room</button>
+  <p id="err" class="error"></p>
+</main>
+
+<main id="lobby" class="screen wide hidden">
+  <h2>Room <span id="lcode" class="code"></span></h2>
+  <div class="row"><button id="copy">Copy invite link</button><button id="rename">Change my name</button></div>
+  <ul id="lplayers" class="plain"></ul>
+  <div id="settings" class="settings"></div>
+  <p id="lhint" class="sub"></p>
+  <button id="start" class="primary hidden">Start game</button>
+  <p id="err2" class="error"></p>
+</main>
+
+<main id="game" class="hidden">
+  <header>
+    <div><strong id="phase"></strong><span id="timer"></span></div>
+    <div class="row"><button id="mute" title="Sound on/off">Sound on</button><div id="role" class="role"></div></div>
+  </header>
+  <div id="banner"></div>
+  <section id="players" class="grid"></section>
+  <section class="panel">
+    <nav>
+      <button data-tab="chat" class="on">Chat</button>
+      <button data-tab="log">Log</button>
+    </nav>
+    <div id="chat" class="feed"></div>
+    <div id="log" class="feed hidden"></div>
+    <div id="typing" class="tag"></div>
+    <div id="emojis" class="emojis"></div>
+    <form id="chatform"><input id="msg" placeholder="Message" maxlength="300" autocomplete="off"><button class="primary">Send</button></form>
+  </section>
+</main>
+<div id="flash"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
