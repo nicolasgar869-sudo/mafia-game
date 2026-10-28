@@ -5,18 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mafia Online</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Hanken+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Hanken+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="day">
 <main id="home" class="screen">
+  <div class="logo">🎭</div>
   <h1>Mafia</h1>
-  <p class="sub">Play with friends on any device. No sign-up.</p>
+  <p class="sub">Lie, deduce, survive. Play with friends on any device.</p>
   <div class="row"><select id="av" aria-label="Avatar"></select><input id="name" placeholder="Your name" maxlength="16" autocomplete="off" style="flex:1"></div>
   <input id="pw" placeholder="Room password (optional)" maxlength="20" autocomplete="off">
   <button id="create" class="primary">Create a room</button>
   <div class="or">or join a friend's room</div>
-  <input id="code" placeholder="Room code" maxlength="4" autocomplete="off">
+  <input id="code" placeholder="ROOM CODE" maxlength="4" autocomplete="off">
   <button id="join">Join room</button>
   <button id="rulesHome" class="ghost">How to play and roles</button>
   <p id="stats" class="sub"></p>
@@ -25,7 +26,7 @@
 
 <main id="lobby" class="screen wide hidden">
   <h2>Room <span id="lcode" class="code"></span></h2>
-  <div class="row"><button id="copy">Copy invite link</button><button id="rename">Change my name</button><button id="addbot" class="hidden">Add bot</button><button id="rulesLobby" class="ghost">Rules</button></div>
+  <div class="row"><button id="copy">Copy invite link</button><button id="rename">Change my name</button><button id="addbot" class="hidden">Add bot</button><button id="rulesLobby" class="ghost">Rules</button><button id="leaveLobby" class="danger">Leave room</button></div>
   <ul id="lplayers" class="plain"></ul>
   <div id="settings" class="settings"></div>
   <p id="lhint" class="sub"></p>
@@ -35,10 +36,13 @@
 
 <main id="game" class="hidden">
   <header>
-    <div><strong id="phase"></strong><span id="timer"></span></div>
-    <div class="row"><div id="hostbtns" class="row"></div><a id="voice" class="btn hidden" target="_blank" rel="noopener">Voice chat</a><button id="rulesGame">Rules</button><button id="mute">Sound on</button><div id="role" class="role"></div></div>
+    <div class="title"><span id="phaseicon"></span><strong id="phase"></strong><span id="timer"></span></div>
+    <div class="row"><div id="hostbtns" class="row"></div><a id="voice" class="btn hidden" target="_blank" rel="noopener">Voice chat</a><button id="rulesGame">Rules</button><button id="mute">Sound on</button><button id="leaveGame" class="danger">Leave</button></div>
   </header>
+  <div id="timerbar"><i></i></div>
+  <div id="rolecard"><div id="role" class="role"></div></div>
   <div id="banner"></div>
+  <section id="ballot" class="ballot hidden"></section>
   <section id="players" class="grid"></section>
   <section class="panel">
     <nav>

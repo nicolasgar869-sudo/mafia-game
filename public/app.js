@@ -25,7 +25,9 @@ const ROLES = {
   serialkiller: ['the Serial Killer', 'Kill one player each night. You win as the last one standing.'],
   town: ['a Townsperson', 'Find the Mafia and vote them out.'],
 };
-const avatar = p => p.av ? `<span class="av emo">${esc(p.av)}</span>` : (() => { let h = 0; for (const c of p.name) h = (h * 31 + c.charCodeAt(0)) % 360; return `<span class="av" style="background:hsl(${h} 45% 42%)">${esc(p.name[0].toUpperCase())}</span>`; })();
+const ICON = { mafia: '🔪', godfather: '🎩', silencer: '🤐', detective: '🔍', doctor: '⚕️', bodyguard: '🛡️', vigilante: '🔫', mayor: '🏛️', jester: '🃏', witch: '🧪', escort: '💃', spy: '🕶️', serialkiller: '🪓', town: '🏠' };
+let prevCounts = {};
+const avatar = p => !p ? '' : p.av ? `<span class="av emo">${esc(p.av)}</span>` : (() => { let h = 0; for (const c of p.name) h = (h * 31 + c.charCodeAt(0)) % 360; return `<span class="av" style="background:hsl(${h} 45% 42%)">${esc(p.name[0].toUpperCase())}</span>`; })();
 const toast = m => { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 3000); };
 
 // ---------- rules ----------
@@ -79,6 +81,7 @@ socket.on('typing', n => { $('#typing').textContent = n + ' is typing…'; clear
 
 $('#create').onclick = () => socket.emit('create', creds());
 $('#join').onclick = () => socket.emit('join', { code: $('#code').value, ...creds() });
+['leaveLobby', 'leaveGame'].forEach(id => $('#' + id).onclick = () => { if (confirm('Leave this game?')) socket.emit('leave'); });
 $('#start').onclick = () => socket.emit('start');
 $('#addbot').onclick = () => socket.emit('addbot');
 $('#rename').onclick = () => { const n = prompt('New name:'); if (n) { localStorage.name = n; socket.emit('rename', n); } };
@@ -96,7 +99,8 @@ function renderTabs() {
 }
 
 // ---------- state ----------
-socket.on('state', s => { S = s; sounds(); render(); prev = { phase: S.phase, log: S.log.length }; });
+socket.on('left', () => { localStorage.removeItem('room'); history.replaceState(null, '', location.pathname); S = null; document.body.className = 'day'; show('home'); });
+socket.on('state', s => { $('#err').textContent = ''; $('#err2').textContent = ''; S = s; sounds(); render(); prev = { phase: S.phase, log: S.log.length }; });
 function won() {
   const r = S.role;
   if (S.winner === 'jester') return r === 'jester';
@@ -107,6 +111,7 @@ function won() {
 function sounds() {
   if (prev.log >= 0 && S.log.length > prev.log && /was (killed|lynched|shot|poisoned)|killed protecting|heartbreak/.test(S.log.slice(prev.log).map(l => l.text).join(' '))) SFX.death();
   if (prev.phase !== S.phase) {
+    prevCounts = {};
     if (S.phase === 'night') { SFX.night(); navigator.vibrate?.(200); } else if (S.phase === 'day') { SFX.day(); navigator.vibrate?.([100, 60, 100]); }
     else if (S.phase === 'lastwords') SFX.last();
     else if (S.phase === 'over') {
@@ -122,15 +127,16 @@ function render() {
   document.body.className = S.phase === 'night' ? 'night' : 'day';
   if (S.phase === 'lobby') return renderLobby();
   show('game'); renderTabs();
+  $('#phaseicon').textContent = { night: '🌙', day: '☀️', lastwords: '🕯️', over: '🏁' }[S.phase];
   $('#phase').textContent = S.phase === 'over' ? 'Game over' : S.phase === 'lastwords' ? 'Last words' : `${S.phase[0].toUpperCase() + S.phase.slice(1)} ${S.day}`;
   const r = $('#role');
-  r.textContent = S.spectator ? 'Spectating' : S.alive ? `You are ${ROLES[S.role][0]}` : `You are dead (${S.role})`;
+  r.textContent = S.spectator ? '👀 Spectating' : S.alive ? `${ICON[S.role]} You are ${ROLES[S.role][0]}` : `💀 You are dead (${S.role})`;
   r.className = 'role ' + (isM(S.role) ? 'mafia' : '');
   const v = $('#voice'); v.classList.toggle('hidden', !S.set.voice); v.href = S.set.voice || '#';
   const live = ['night', 'day', 'lastwords'].includes(S.phase);
   $('#hostbtns').innerHTML = S.isHost && live ? `<button id="pause">${S.paused ? 'Resume' : 'Pause'}</button><button id="skipphase">Skip phase</button>` : '';
   $('#pause') && ($('#pause').onclick = () => socket.emit('pause')); $('#skipphase') && ($('#skipphase').onclick = () => socket.emit('skipphase'));
-  renderBanner(); renderPlayers(); renderFeeds();
+  renderBanner(); renderBallot(); renderPlayers(); renderFeeds();
 }
 
 function renderLobby() {
@@ -154,7 +160,7 @@ function renderSettings() {
   if (el.contains(document.activeElement)) return;
   const num = (n, l, v) => `<label>${l}<input type="number" name="${n}" value="${v}"></label>`;
   const chk = (n, l, v) => `<label><input type="checkbox" name="${n}" ${v ? 'checked' : ''}>${l}</label>`;
-  el.innerHTML = `<h3>Game</h3>${num('night', 'Night length (seconds)', s.night)}${num('day', 'Day length (seconds)', s.day)}${num('mafia', 'Mafia count (0 = automatic)', s.mafia)}
+  el.innerHTML = `<h3>Game</h3>${num('night', 'Seconds per night turn', s.night)}${num('day', 'Day length (seconds)', s.day)}${num('mafia', 'Mafia count (0 = automatic)', s.mafia)}
     <div class="chk">${chk('reveal', 'Reveal role on death', s.reveal)}${chk('lastWords', 'Last words', s.lastWords)}${chk('events', 'Random events', s.events)}${chk('anon', 'Anonymous voting', s.anon)}${chk('filter', 'Profanity filter', s.filter)}</div>
     <label>Voice chat link<input type="text" name="voice" placeholder="https://meet.google.com/..." value="${esc(s.voice)}"></label>
     <h3>Roles</h3><div class="chk">${BASIC.map(k => chk(k, nm(k), s.roles[k])).join('')}</div>
@@ -173,6 +179,7 @@ function actions() {
   const d = S.done, f = d.fin, r = S.role, A = (type, label, ok) => ({ type, label, ok });
   if (S.phase === 'day') return S.silenced === S.me ? [] : [A('vote', 'Vote', p => p.id !== S.me)];
   if (S.phase !== 'night') return [];
+  if (S.turn !== (isM(r) ? 'mafia' : r)) return [];
   const out = [];
   if (isM(r)) out.push(A('kill', 'Kill', p => !isM(p.role)));
   if (r === 'silencer' && !f.silencer) out.push(A('silence', 'Silence', p => !isM(p.role)));
@@ -187,7 +194,7 @@ function actions() {
 }
 function canHold() {
   const f = S.done.fin, r = S.role;
-  return S.alive && S.phase === 'night' && ((r === 'vigilante' && S.shots > 0 && !f.vigilante) || (r === 'witch' && !f.witch && (S.potions.save + S.potions.poison > 0)) || (r === 'serialkiller' && !f.serialkiller) || (r === 'silencer' && !f.silencer));
+  return S.alive && S.phase === 'night' && S.turn === (isM(r) ? 'mafia' : r) && ((r === 'vigilante' && S.shots > 0 && !f.vigilante) || (r === 'witch' && !f.witch && (S.potions.save + S.potions.poison > 0)) || (r === 'serialkiller' && !f.serialkiller) || (r === 'silencer' && !f.silencer));
 }
 function renderBanner() {
   const b = $('#banner'), lwName = S.players.find(p => p.id === S.lw)?.name, living = S.players.filter(p => p.alive && !p.spectator).length;
@@ -197,7 +204,8 @@ function renderBanner() {
   else if (S.phase === 'lastwords') b.textContent = S.lw === S.me ? 'You were lynched. Say your last words.' : `${lwName} was lynched and may speak.`;
   else if (!S.alive) b.textContent = 'You are out. Watch the game unfold.';
   else if (S.phase === 'day') b.textContent = S.silenced === S.me ? 'You were silenced today. You cannot speak or vote.' : 'Discuss, then vote for who to lynch. A majority is needed.';
-  else b.textContent = ROLES[S.role][1];
+  else if (S.phase === 'night' && S.turn !== (isM(S.role) ? 'mafia' : S.role)) b.textContent = `🌙 The ${nm(S.turn)} is waking up (turn ${S.step + 1} of ${S.steps}). Keep your eyes closed.`;
+  else b.textContent = ROLES[S.role][1] + (S.phase === 'night' ? ` It is your turn (${S.step + 1} of ${S.steps}).` : '');
   if (S.phase === 'night' && S.event === 'fullmoon') b.textContent += ' Full moon: the Detective investigates twice.';
   if (S.phase === 'day' && S.event === 'blackout') b.textContent += ' Blackout: chat and whispers are off today.';
   if (S.lover && S.alive) b.textContent += ` Your lover is ${S.lover}.`;
@@ -211,17 +219,26 @@ function renderBanner() {
   $('#rematch') && ($('#rematch').onclick = () => socket.emit('start'));
   $('#again') && ($('#again').onclick = () => socket.emit('again'));
 }
+function renderBallot() {
+  const el = $('#ballot');
+  if (S.phase !== 'day') return el.classList.add('hidden');
+  el.classList.remove('hidden');
+  const lv = S.players.filter(p => p.alive && !p.spectator), need = Math.floor(lv.length / 2) + 1, by = {};
+  Object.entries(S.votes).forEach(([v, t]) => { if (t) (by[t] = by[t] || []).push(v); });
+  const rows = lv.filter(p => by[p.id]).sort((a, b) => by[b.id].length - by[a.id].length);
+  el.innerHTML = `<div class="bh"><span>⚖️ The Trial</span><span class="tag">${need} votes needed to lynch${S.set.anon ? ' · votes are hidden' : ''}</span></div>` +
+    (rows.length ? rows.map(p => { const n = by[p.id].length; return `<div class="brow ${n >= need ? 'lethal' : ''} ${n > (prevCounts[p.id] || 0) ? 'bump' : ''}"><span class="bn">${avatar(p)}${esc(p.name)}</span><div class="bar"><i style="width:${Math.min(100, n / need * 100)}%"></i></div><span class="vs">${by[p.id].map(v => avatar(S.players.find(x => x.id === v))).join('')}</span><b>${n}</b></div>`; }).join('') : '<div class="tag">No votes yet. Cast yours below.</div>');
+  prevCounts = Object.fromEntries(rows.map(p => [p.id, by[p.id].length]));
+}
 function renderPlayers() {
-  const acts = actions(), votes = S.phase === 'day' ? S.votes : S.mafiaVotes, pick = votes[S.me], counts = {};
-  Object.values(votes).forEach(t => t && (counts[t] = (counts[t] || 0) + 1));
+  const acts = actions(), votes = S.phase === 'day' ? S.votes : S.mafiaVotes, pick = votes[S.me];
   const canWhisper = S.alive && S.phase === 'day' && S.silenced !== S.me && S.event !== 'blackout' && !S.spectator;
   $('#players').innerHTML = S.players.filter(p => !p.spectator).map(p => {
     const mine = acts.filter(a => p.alive && a.ok(p));
-    const tag = p.role ? `<span class="tag ${isM(p.role) ? 'mafia' : ''}">${nm(p.role)}</span>` : '';
-    const cnt = counts[p.id] ? `<span class="tag">${counts[p.id]} vote${counts[p.id] > 1 ? 's' : ''}</span>` : '';
-    const sil = S.silenced === p.id ? '<span class="tag">silenced</span>' : '';
-    const btns = mine.map(a => `<button data-id="${p.id}" data-type="${a.type}">${a.label}</button>`).join('') + (canWhisper && p.alive && p.id !== S.me ? `<button data-w="${p.id}" class="ghost">Whisper</button>` : '');
-    return `<div class="pcard ${p.alive ? '' : 'dead'} ${pick === p.id ? 'picked' : ''}"><span class="n">${avatar(p)}${esc(p.name)}${p.connected ? '' : ' (offline)'}${p.id !== S.me && !p.bot ? `<button class="mini" data-mute="${esc(p.name)}" title="Mute chat">${mutedNames.has(p.name) ? '🔈' : '🔇'}</button>` : ''}</span>${tag}${cnt}${sil}<div class="acts">${btns}</div></div>`;
+    const tag = p.role ? `<span class="tag ${isM(p.role) ? 'mafia' : ''}">${ICON[p.role]} ${nm(p.role)}</span>` : '';
+    const sil = S.silenced === p.id ? '<span class="tag">🤐 silenced</span>' : '';
+    const btns = mine.map(a => `<button data-id="${p.id}" data-type="${a.type}">${a.type === 'vote' ? '🗳️ ' : ''}${a.label}</button>`).join('') + (canWhisper && p.alive && p.id !== S.me ? `<button data-w="${p.id}" class="ghost">Whisper</button>` : '');
+    return `<div class="pcard ${p.alive ? '' : 'dead'} ${pick === p.id ? 'picked' : ''}"><span class="n">${avatar(p)}${esc(p.name)}${p.connected ? '' : ' (offline)'}${p.id !== S.me && !p.bot ? `<button class="mini" data-mute="${esc(p.name)}" title="Mute chat">${mutedNames.has(p.name) ? '🔈' : '🔇'}</button>` : ''}</span>${tag}${sil}<div class="acts">${btns}</div></div>`;
   }).join('');
   document.querySelectorAll('.pcard [data-type]').forEach(b => b.onclick = () => socket.emit('act', { type: b.dataset.type, target: b.dataset.id }));
   document.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { const t = prompt('Whisper (only they will see it):'); if (t) socket.emit('whisper', { to: b.dataset.w, text: t }); });
@@ -249,4 +266,5 @@ setInterval(() => {
   if (!S.endsAt) return $('#timer').textContent = '';
   const s = Math.max(0, Math.round((S.endsAt - Date.now()) / 1000));
   $('#timer').textContent = ` ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  $('#timerbar i').style.width = S.dur ? Math.max(0, Math.min(100, (S.endsAt - Date.now()) / S.dur * 100)) + '%' : '0';
 }, 500);
