@@ -10,55 +10,61 @@
 </head>
 <body class="day">
 <main id="home" class="screen">
-  <div class="logo">🎭</div>
+  <div class="row" style="justify-content:space-between"><div class="logo">🎭</div><select class="langsel" aria-label="Language"></select></div>
   <h1>Mafia</h1>
-  <p class="sub">Lie, deduce, survive. Play with friends on any device.</p>
-  <div class="row"><select id="av" aria-label="Avatar"></select><input id="name" placeholder="Your name" maxlength="16" autocomplete="off" style="flex:1"></div>
-  <input id="pw" placeholder="Room password (optional)" maxlength="20" autocomplete="off">
-  <button id="create" class="primary">Create a room</button>
-  <div class="or">or join a friend's room</div>
-  <input id="code" placeholder="ROOM CODE" maxlength="4" autocomplete="off">
-  <button id="join">Join room</button>
-  <button id="rulesHome" class="ghost">How to play and roles</button>
+  <p class="sub" data-i18n="sub"></p>
+  <div class="row"><select id="av" aria-label="Avatar"></select><input id="name" data-i18n-ph="namePh" maxlength="16" autocomplete="off" style="flex:1"></div>
+  <input id="pw" data-i18n-ph="pwPh" maxlength="20" autocomplete="off">
+  <button id="create" class="primary" data-i18n="create"></button>
+  <div class="or" data-i18n="or"></div>
+  <input id="code" data-i18n-ph="codePh" maxlength="4" autocomplete="off">
+  <button id="join" data-i18n="join"></button>
+  <button id="tutorial" data-i18n="tutorial"></button>
+  <div class="row"><button id="rulesHome" class="ghost" data-i18n="howto"></button><button id="achHome" class="ghost" data-i18n="ach"></button><a class="btn" href="history.html" data-i18n="history"></a></div>
   <p id="stats" class="sub"></p>
   <p id="err" class="error"></p>
 </main>
 
 <main id="lobby" class="screen wide hidden">
   <h2>Room <span id="lcode" class="code"></span></h2>
-  <div class="row"><button id="copy">Copy invite link</button><button id="rename">Change my name</button><button id="addbot" class="hidden">Add bot</button><button id="rulesLobby" class="ghost">Rules</button><button id="leaveLobby" class="danger">Leave room</button></div>
+  <div class="row"><button id="copy" data-i18n="copy"></button><button id="rename" data-i18n="rename"></button><button id="addbot" class="hidden" data-i18n="addbot"></button><button id="rulesLobby" class="ghost" data-i18n="rules"></button><button id="leaveLobby" class="danger" data-i18n="leaveRoom"></button></div>
   <ul id="lplayers" class="plain"></ul>
   <div id="settings" class="settings"></div>
   <p id="lhint" class="sub"></p>
-  <button id="start" class="primary hidden">Start game</button>
+  <button id="start" class="primary hidden" data-i18n="start"></button>
   <p id="err2" class="error"></p>
 </main>
 
 <main id="game" class="hidden">
   <header>
     <div class="title"><span id="phaseicon"></span><strong id="phase"></strong><span id="timer"></span></div>
-    <div class="row"><div id="hostbtns" class="row"></div><a id="voice" class="btn hidden" target="_blank" rel="noopener">Voice chat</a><button id="rulesGame">Rules</button><button id="mute">Sound on</button><button id="leaveGame" class="danger">Leave</button></div>
+    <div class="row"><div id="hostbtns" class="row"></div><select class="langsel" aria-label="Language"></select><a id="voice" class="btn hidden" target="_blank" rel="noopener" data-i18n="voiceBtn"></a><button id="rulesGame" data-i18n="rules"></button><button id="mute"></button><button id="narr"></button><button id="leaveGame" class="danger" data-i18n="leave"></button></div>
   </header>
   <div id="timerbar"><i></i></div>
+  <div id="scene"></div>
   <div id="rolecard"><div id="role" class="role"></div></div>
   <div id="banner"></div>
+  <div id="tip" class="hidden"></div>
   <section id="ballot" class="ballot hidden"></section>
   <section id="players" class="grid"></section>
   <section class="panel">
     <nav>
-      <button data-tab="chat" class="on">Chat</button>
-      <button data-tab="log">Log</button>
-      <button data-tab="recap">Recap</button>
+      <button data-tab="chat" class="on" data-i18n="tabChat"></button>
+      <button data-tab="log" data-i18n="tabLog"></button>
+      <button data-tab="recap" data-i18n="tabRecap"></button>
+      <button data-tab="dead" class="hidden" data-i18n="tabDead"></button>
     </nav>
     <div id="chat" class="feed"></div>
     <div id="log" class="feed hidden"></div>
     <div id="recap" class="feed hidden"></div>
+    <div id="deadfeed" class="feed hidden"></div>
     <div id="typing" class="tag"></div>
     <div id="emojis" class="emojis"></div>
-    <form id="chatform"><input id="msg" placeholder="Message" maxlength="300" autocomplete="off"><button class="primary">Send</button></form>
+    <form id="chatform"><input id="msg" data-i18n-ph="msgPh" maxlength="300" autocomplete="off"><button class="primary" data-i18n="send"></button></form>
   </section>
 </main>
-<dialog id="rules"><div id="rulesbody"></div><form method="dialog"><button class="primary">Close</button></form></dialog>
+<dialog id="rules"><div id="rulesbody"></div><form method="dialog"><button class="primary">OK</button></form></dialog>
+<div id="reveal" class="hidden"><div class="rcard"><div class="face front"></div><div class="face back"></div></div></div>
 <div id="toast"></div>
 <div id="flash"></div>
 <script src="/socket.io/socket.io.js"></script>

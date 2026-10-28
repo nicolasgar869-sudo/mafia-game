@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Past games · Mafia Online</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Hanken+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="night">
+<main class="screen wide">
+  <a href="/" class="btn" style="align-self:flex-start">← Back</a>
+  <h2>Past games</h2>
+  <p class="sub">The last 30 finished games on this server. Pick one to replay it event by event.</p>
+  <ul id="list" class="plain"></ul>
+  <section id="replay" class="ballot hidden">
+    <div class="bh"><span id="rtitle"></span></div>
+    <div id="rplayers" class="row"></div>
+    <div id="revents" class="feed" style="max-height:40vh"></div>
+    <div class="row"><button id="prev">◀ Back</button><button id="next">Next ▶</button><button id="play" class="primary">▶ Play</button><button id="all">Show all</button></div>
+    <h3 style="margin-top:8px;color:var(--accent)">Night by night</h3><div id="rstory" class="feed"></div>
+    <h3 style="margin-top:8px;color:var(--accent)">Awards</h3><div id="rawards" class="feed"></div>
+  </section>
+</main>
+<script>
+const $=s=>document.querySelector(s), esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const WIN={town:'Town won',mafia:'Mafia won',jester:'Jester won',serialkiller:'Serial Killer won'};
+let G=null,i=0,timer=null;
+fetch('/api/history').then(r=>r.json()).then(l=>{
+  $('#list').innerHTML=l.length?l.map(g=>`<li><span>${new Date(g.ts).toLocaleString()} · ${g.n} players · ${g.days} days</span><button data-id="${g.id}">${WIN[g.winner]||'Replay'}</button></li>`).join(''):'<li>No finished games yet.</li>';
+  document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>open(b.dataset.id));
+});
+function open(id){fetch('/api/history/'+id).then(r=>r.json()).then(g=>{G=g;i=0;clearInterval(timer);$('#replay').classList.remove('hidden');
+  $('#rtitle').textContent=(WIN[g.winner]||'')+' · '+new Date(g.ts).toLocaleString();
+  $('#rplayers').innerHTML=g.players.map(p=>`<span class="tag">${esc(p.name)}: ${esc(p.role)}${p.alive?' ✓':' ✝'}</span>`).join(' · ');
+  $('#rstory').innerHTML=g.story.map(x=>`<div class="entry">${esc(x)}</div>`).join('');
+  $('#rawards').innerHTML=g.awards.map(x=>`<div class="entry">${esc(x)}</div>`).join('')||'<div class="entry">None</div>';
+  draw();window.scrollTo(0,document.body.scrollHeight)})}
+function draw(){$('#revents').innerHTML=G.log.slice(0,i).map(l=>`<div class="${/Night \d+ falls/.test(l.text)?'msg':'entry'}">${esc(l.text)}</div>`).join('')||'<div class="entry">Press Next or Play.</div>';$('#revents').scrollTop=1e9}
+$('#next').onclick=()=>{if(G&&i<G.log.length){i++;draw()}};
+$('#prev').onclick=()=>{if(G&&i>0){i--;draw()}};
+$('#all').onclick=()=>{if(G){i=G.log.length;draw()}};
+$('#play').onclick=()=>{if(!G)return;clearInterval(timer);i=0;draw();timer=setInterval(()=>{if(i>=G.log.length)return clearInterval(timer);i++;draw()},1300)};
+</script>
+</body>
+</html>
