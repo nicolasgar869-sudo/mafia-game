@@ -12,9 +12,14 @@ const MAFIA_ROLES = ['mafia', 'godfather', 'silencer'];
 const ORDER = ['mafia', 'doctor', 'bodyguard', 'escort', 'detective', 'witch', 'serialkiller', 'vigilante'];   // night turn order
 const BOTNAMES = ['Ada', 'Ben', 'Cleo', 'Dex', 'Eli', 'Faye', 'Gus', 'Hana'];
 const BAD = /\b(fuck\w*|shit\w*|bitch\w*|asshole|cunt|dick)\b/gi;
+const fs = require('fs');
+const HFILE = __dirname + '/history.json';
+let HIST = []; try { HIST = JSON.parse(fs.readFileSync(HFILE, 'utf8')); } catch (e) { /* first run */ }
+app.get('/api/history', (q, res) => res.json(HIST.map(g => ({ id: g.id, ts: g.ts, winner: g.winner, n: g.players.length, days: g.days }))));
+app.get('/api/history/:id', (q, res) => { const g = HIST.find(x => x.id === q.params.id); g ? res.json(g) : res.status(404).end(); });
 const rooms = {};
 const defaults = () => ({
-  night: 20, day: 120, mafia: 0, reveal: true, lastWords: true, events: false, anon: false, filter: true, lovers: false, voice: '',
+  night: 20, day: 120, mafia: 0, botLevel: 'normal', reveal: true, lastWords: true, events: false, anon: false, filter: true, lovers: false, voice: '',
   roles: { detective: true, doctor: true, vigilante: false, bodyguard: false, mayor: false, jester: false, godfather: false,
     witch: false, escort: false, spy: false, serialkiller: false, silencer: false },
 });
@@ -35,16 +40,19 @@ const clamp = (v, a, b, d) => Math.min(b, Math.max(a, parseInt(v) || d));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const later = (r, ms, fn) => setTimeout(function t() { if (r.paused) return setTimeout(t, 1500); fn(); }, ms);
 
+const makeRoom = (pid, pw) => ({ code: newCode(), host: pid, pw: clean(pw).slice(0, 20), players: {}, phase: 'lobby', day: 0, log: [], chat: [], mchat: [], dchat: [], mv: {}, votes: {}, heal: null, guard: null, block: null,
+  inspected: false, fin: {}, acts: [], story: [], awards: [], skip: {}, wc: {}, winner: null, lw: null, event: null, silenced: null, voteTotals: {}, msgs: {}, ment: {}, vh: [], muted: {}, set: defaults() });
+
 function view(r, me) {
   const over = r.phase === 'over';
   const votes = r.phase !== 'day' ? {} : r.set.anon && !over ? (me.id in r.votes ? { [me.id]: r.votes[me.id] } : {}) : r.votes;
   return {
     code: r.code, me: me.id, isHost: r.host === me.id, role: me.role, alive: me.alive, spectator: !!me.spectator, shots: me.shots || 0,
     phase: r.phase, day: r.day, endsAt: r.endsAt, winner: r.winner, min: MIN_PLAYERS, set: r.set, lw: r.lw, hostId: r.host,
-    paused: !!r.paused, turn: r.phase === 'night' ? r.turn : null, step: r.step, steps: (r.order || []).length, dur: r.dur, event: r.event, silenced: r.phase === 'day' ? r.silenced : null, skipN: Object.keys(r.skip || {}).length,
+    paused: !!r.paused, tutorial: !!r.tutorial, dchat: ((!me.alive && r.phase !== 'lobby') || over) ? r.dchat : [], turn: r.phase === 'night' ? r.turn : null, step: r.step, steps: (r.order || []).length, dur: r.dur, event: r.event, silenced: r.phase === 'day' ? r.silenced : null, skipN: Object.keys(r.skip || {}).length,
     potions: me.potions || null, lover: me.lover ? r.players[me.lover]?.name : null, whispers: me.whispers,
     players: list(r).map(q => ({
-      id: q.id, name: q.name, av: q.av, bot: !!q.bot, alive: q.alive, connected: q.connected, spectator: !!q.spectator,
+      id: q.id, name: q.name, av: q.av, bot: !!q.bot, muted: !!r.muted[q.id], alive: q.alive, connected: q.connected, spectator: !!q.spectator,
       role: (over || (!q.alive && !q.spectator && r.set.reveal) || q.id === me.id || (isM(me) && isM(q))) ? q.role : null,
     })),
     log: r.log, chat: r.chat,
@@ -66,7 +74,7 @@ function setPhase(r, phase, secs) {
   if (secs) r.timer = setTimeout(() => PH[phase](r), secs * 1000);
 }
 function reset(r) {
-  Object.assign(r, { winner: null, log: [], chat: [], mchat: [], day: 0, lw: null, event: null, silenced: null, story: [], awards: [] });
+  Object.assign(r, { winner: null, log: [], chat: [], mchat: [], day: 0, lw: null, event: null, silenced: null, story: [], awards: [], dchat: [], vh: [] });
   list(r).forEach(p => { if (p.role) p.prev = p.role; Object.assign(p, { role: null, alive: true, notes: [], spectator: false, shots: 0, lover: null, whispers: [], potions: null }); });
 }
 function startGame(r) {
@@ -84,9 +92,10 @@ function startGame(r) {
     if (sc < bestScore) { bestScore = sc; best = a; }
   }
   ps.forEach((p, j) => Object.assign(p, { role: best[j], alive: true, notes: [], whispers: [], lover: null, shots: best[j] === 'vigilante' ? 1 : 0, potions: best[j] === 'witch' ? { save: 1, poison: 1 } : null }));
+  if (r.tutorial) { const me = ps.find(p => !p.bot), d = ps.find(p => p.role === 'detective'); if (me && d && me !== d) [me.role, d.role] = [d.role, me.role]; }   // tutorial: you are the Detective
   r.order = ORDER.filter(g => ps.some(p => grp(p) === g));
   if (s.lovers && n >= 4) { const [a, b] = shuffle([...ps]); a.lover = b.id; b.lover = a.id; }
-  Object.assign(r, { day: 0, log: [], chat: [], mchat: [], winner: null, lw: null, story: [], awards: [], voteTotals: {}, msgs: {}, ment: {}, event: null, silenced: null });
+  Object.assign(r, { day: 0, log: [], chat: [], mchat: [], winner: null, lw: null, story: [], awards: [], voteTotals: {}, msgs: {}, ment: {}, dchat: [], vh: [], event: null, silenced: null });
   log(r, `The game begins with ${n} players and ${m} Mafia hiding among them.`);
   startNight(r);
 }
@@ -185,6 +194,7 @@ function endDay(r) {
   if (!id || n <= total / 2) { log(r, 'No majority was reached. Nobody was lynched.'); return startNight(r); }
   const v = r.players[id];
   kill(r, v, `lynched by majority vote (${n} votes)`);
+  if (r.set.reveal) r.vh.push({ mafia: isM(v), voters: Object.entries(r.votes).filter(([, tt]) => tt === id).map(([x]) => x) });
   if (v.role === 'jester') { log(r, `${v.name} was the Jester and wins by being lynched!`); return finish(r, 'jester'); }
   if (checkWin(r)) return;
   if (r.set.lastWords && v.alive === false) { r.lw = id; setPhase(r, 'lastwords', LAST_WORDS_SECS); log(r, `${v.name} may speak their last words.`); emit(r); }
@@ -200,7 +210,13 @@ function awards(r) {
   const det = ps.find(p => p.role === 'detective' && p.notes.some(x => /MAFIA/.test(x))); if (det) a.push(`Sharpest Detective: ${det.name} found a Mafia member`);
   return a;
 }
-function finish(r, winner) { r.winner = winner; setPhase(r, 'over'); r.awards = awards(r); emit(r); return true; }
+function saveHistory(r) {
+  if (r.tutorial) return;
+  HIST.unshift({ id: Math.random().toString(36).slice(2, 10), ts: Date.now(), winner: r.winner, days: r.day, players: list(r).filter(p => !p.spectator).map(p => ({ name: p.name, role: p.role, alive: p.alive, bot: !!p.bot })), story: r.story, log: r.log, awards: r.awards });
+  HIST = HIST.slice(0, 30);
+  try { fs.writeFileSync(HFILE, JSON.stringify(HIST)); } catch (e) { /* read-only disk: history stays in memory */ }
+}
+function finish(r, winner) { r.winner = winner; setPhase(r, 'over'); r.awards = awards(r); saveHistory(r); emit(r); return true; }
 function checkWin(r) {
   const lv = living(r), m = lv.filter(isM).length, t = lv.length - m;
   let w = null;
@@ -277,28 +293,51 @@ function say(r, p, text) {
   r.chat.push({ name: p.name, text, ts: Date.now() }); r.msgs[p.id] = (r.msgs[p.id] || 0) + 1;
   mention(r, p, text); emit(r);
 }
+function score(r, p, q) {                       // how suspicious q looks to bot p, from PUBLIC information only
+  let v = (r.ment[q.id] || 0) * 2 - Math.min(2, r.msgs[q.id] || 0) * 0.3 + Math.random();
+  r.vh.forEach(h => { if (h.voters.includes(q.id)) v += h.mafia ? -3 : 3; });      // voted for someone later revealed innocent = suspicious
+  if (p.grudge === q.id) v += 2;                                                     // remembers who accused it
+  return v;
+}
 function botSay(r, p) {
-  const c = living(r).filter(q => q.id !== p.id && !(isM(p) && isM(q)));       // a Mafia bot knows its own teammates, nothing else
+  const lvl = r.set.botLevel, c = living(r).filter(q => q.id !== p.id && !(isM(p) && isM(q)));
   if (!c.length) return;
   const hot = [...c].sort((a, b) => (r.ment[b.id] || 0) - (r.ment[a.id] || 0))[0];
   const quiet = [...c].sort((a, b) => (r.msgs[a.id] || 0) - (r.msgs[b.id] || 0))[0];
+  const top = [...c].sort((a, b) => score(r, p, b) - score(r, p, a))[0];
   const dead = r.log.slice().reverse().find(l => l.day === r.day && /was (killed|shot|poisoned)/.test(l.text));
-  const o = [];
-  if ((r.ment[hot.id] || 0) > 0) o.push({ t: `I agree, ${sn(hot)} seems suspicious to me.`, s: hot }, { t: `${sn(hot)}, a lot of people are talking about you. Care to explain?`, s: hot });
-  o.push({ t: `${sn(quiet)} has been very quiet. Mafia?`, s: quiet }, { t: `Not sure, but ${sn(quiet)} feels off to me.`, s: quiet });
-  if (dead) o.push({ t: `Poor ${dead.text.split(' was ')[0]}... who could have done this?` });
-  o.push({ t: r.day === 1 ? 'No info yet. Everyone say something so we can read each other.' : 'We cannot afford a wrong vote today.' }, { t: "I'm just a regular townsperson, I swear." }, { t: 'Let us not rush the vote.' });
+  const generic = [{ t: r.day === 1 ? 'No info yet. Everyone say something so we can read each other.' : 'We cannot afford a wrong vote today.' }, { t: "I'm just a regular townsperson, I swear." }, { t: 'Let us not rush the vote.' }];
+  let o = [];
+  if (lvl === 'easy') { const x = pick(c); o = [...generic, { t: `${sn(x)} looks suspicious.`, s: x }]; }
+  else if (lvl === 'hard') {
+    const bad = r.vh.some(h => h.voters.includes(top.id) && !h.mafia), gr = p.grudge && c.find(q => q.id === p.grudge);
+    if (bad) o.push({ t: `${sn(top)} voted for an innocent player earlier. That worries me.`, s: top, w: 4 });
+    if (gr) o.push({ t: `${sn(gr)} accused me before. I am keeping an eye on them.`, s: gr, w: 3 });
+    o.push({ t: `My top suspect is ${sn(top)}. Prove me wrong.`, s: top, w: 3 }, { t: `${sn(quiet)} has said almost nothing. Silence is a strategy.`, s: quiet });
+    if (dead) o.push({ t: `Poor ${dead.text.split(' was ')[0]}. Think about who benefits from that.` });
+    o = o.flatMap(x => Array(x.w || 1).fill(x));
+  } else {
+    if ((r.ment[hot.id] || 0) > 0) o.push({ t: `I agree, ${sn(hot)} seems suspicious to me.`, s: hot }, { t: `${sn(hot)}, a lot of people are talking about you. Care to explain?`, s: hot });
+    o.push({ t: `${sn(quiet)} has been very quiet. Mafia?`, s: quiet }, { t: `Not sure, but ${sn(quiet)} feels off to me.`, s: quiet });
+    if (dead) o.push({ t: `Poor ${dead.text.split(' was ')[0]}... who could have done this?` });
+    o.push(...generic);
+  }
   const m = pick(o); if (m.s) p.sus = m.s.id;
   say(r, p, m.t);
 }
 function botVote(r, p) {
-  const c = living(r).filter(q => q.id !== p.id && !(isM(p) && isM(q)));
+  const lvl = r.set.botLevel, c = living(r).filter(q => q.id !== p.id && !(isM(p) && isM(q)));
+  if (lvl === 'easy') return pick(c)?.id;
+  if (lvl === 'hard') {
+    const lead = q => Object.values(r.votes).filter(t => t === q.id).length * 1.5;         // bandwagon on the current leader
+    return [...c].sort((a, b) => score(r, p, b) + lead(b) - score(r, p, a) - lead(a))[0]?.id;
+  }
   const hot = [...c].sort((a, b) => (r.ment[b.id] || 0) - (r.ment[a.id] || 0))[0];
   return (c.find(q => q.id === p.sus) || ((r.ment[hot?.id] || 0) > 0 ? hot : null) || pick(c))?.id;
 }
 function botReact(r, from, text) {
   list(r).filter(b => b.bot && b.alive && b.id !== from.id && text.toLowerCase().includes(sn(b).toLowerCase())).forEach(b => {
-    if (!(isM(b) && isM(from))) b.sus = from.id;
+    if (!(isM(b) && isM(from))) { b.sus = from.id; b.grudge = from.id; }
     if (Math.random() < 0.75) later(r, 2000 + Math.random() * 3000, () => say(r, b, pick([`Why me, ${sn(from)}? I'm innocent!`, "That's not fair. I've been trying to help.", `${sn(from)}, you are accusing me without proof.`, `Hmm, maybe ${sn(from)} is trying to deflect.`])));
   });
 }
@@ -320,8 +359,7 @@ io.on('connection', socket => {
 
   socket.on('create', ({ name, pid, av, pw }) => {
     name = clean(name).slice(0, 16); if (!name) return err('Enter a name.');
-    const r = { code: newCode(), host: pid, pw: clean(pw).slice(0, 20), players: {}, phase: 'lobby', day: 0, log: [], chat: [], mchat: [], mv: {}, votes: {}, heal: null, guard: null, block: null,
-      inspected: false, fin: {}, acts: [], story: [], awards: [], skip: {}, wc: {}, winner: null, lw: null, event: null, silenced: null, voteTotals: {}, msgs: {}, set: defaults() };
+    const r = makeRoom(pid, pw);
     r.players[pid] = mk(pid, name, av, false);
     rooms[r.code] = r; attach(r, r.players[pid]);
   });
@@ -349,6 +387,7 @@ io.on('connection', socket => {
     const S = room.set;
     S.night = clamp(s.night, 10, 120, 20); S.day = clamp(s.day, 20, 600, 120); S.mafia = clamp(s.mafia, 0, 5, 0);
     ['reveal', 'lastWords', 'events', 'anon', 'filter', 'lovers'].forEach(k => { S[k] = !!s[k]; });
+    S.botLevel = ['easy', 'normal', 'hard'].includes(s.botLevel) ? s.botLevel : 'normal';
     const v = clean(s.voice).slice(0, 200); S.voice = /^https:\/\//.test(v) ? v : '';
     Object.keys(S.roles).forEach(k => { S.roles[k] = !!(s.roles && s.roles[k]); });
     emit(room);
@@ -390,9 +429,12 @@ io.on('connection', socket => {
 
   socket.on('act', msg => doAct(room, player, msg || {}));
 
+  const deadChat = () => !player.alive && ['night', 'day', 'lastwords'].includes(room.phase) && !(room.phase === 'lastwords' && room.lw === player.id);
   const silenced = () => room.phase === 'day' && room.silenced === player.id;
   const canChat = () => {
     const r = room, p = player;
+    if (r.muted[p.id]) return false;
+    if (deadChat()) return true;
     if (['lobby', 'over'].includes(r.phase)) return true;
     if (r.phase === 'day') return p.alive && !silenced() && r.event !== 'blackout';
     if (r.phase === 'lastwords') return r.lw === p.id;
@@ -400,7 +442,10 @@ io.on('connection', socket => {
   };
   socket.on('chat', ({ text }) => {
     text = clean(text).slice(0, 300);
-    if (!room || !text || !canChat()) return;
+    if (!room || !text) return;
+    if (room.muted[player.id]) return err('The host muted you.');
+    if (!canChat()) return;
+    if (deadChat()) { room.dchat.push({ name: player.name, text: filt(room, text), ts: Date.now() }); return emit(room); }
     room.msgs[player.id] = (room.msgs[player.id] || 0) + 1;
     const msg = { name: player.name, text: filt(room, text), ts: Date.now() };
     (room.phase === 'night' ? room.mchat : room.chat).push(msg);
@@ -410,15 +455,32 @@ io.on('connection', socket => {
   socket.on('whisper', ({ to, text }) => {
     const r = room, p = player, t = r && r.players[to];
     text = clean(text).slice(0, 200);
-    if (!r || !t || !text || r.phase !== 'day' || !p.alive || !t.alive || t === p || silenced() || r.event === 'blackout') return;
+    if (!r || !t || !text || r.phase !== 'day' || !p.alive || !t.alive || t === p || silenced() || r.muted[p.id] || r.event === 'blackout') return;
     if ((r.wc[p.id] || 0) >= WHISPERS_PER_DAY) return err(`You used your ${WHISPERS_PER_DAY} whispers for today.`);
     r.wc[p.id] = (r.wc[p.id] || 0) + 1;
     const w = { from: p.name, to: t.name, text: filt(r, text) };
     p.whispers.push(w); t.whispers.push(w); emit(r);
   });
   socket.on('typing', () => {
-    if (!room || !canChat()) return;
+    if (!room || !canChat() || deadChat()) return;
     list(room).filter(p => p.sid && p.id !== player.id && (room.phase !== 'night' || isM(p))).forEach(p => io.to(p.sid).emit('typing', player.name));
+  });
+
+  socket.on('mute', id => {
+    if (!host() || !room.players[id] || id === player.id) return;
+    if (room.muted[id]) delete room.muted[id]; else room.muted[id] = true;
+    emit(room);
+  });
+  socket.on('report', id => {
+    const t = room && room.players[id], h = room && room.players[room.host];
+    if (t && h && h.sid) io.to(h.sid).emit('reported', { by: player.name, who: t.name });
+  });
+  socket.on('tutorial', ({ name, pid, av }) => {
+    const r = makeRoom(pid, ''); r.tutorial = true;
+    Object.assign(r.set, { night: 15, day: 60, lastWords: false, botLevel: 'easy' });
+    r.players[pid] = mk(pid, clean(name).slice(0, 16) || 'You', av, false); rooms[r.code] = r;
+    ['Ada', 'Ben', 'Cleo', 'Dex'].forEach((n, i) => { const id = 'bot' + i + Math.random().toString(36).slice(2, 6); r.players[id] = { ...mk(id, 'Bot ' + n, '🤖', false), bot: true }; });
+    attach(r, r.players[pid]); startGame(r);
   });
 
   socket.on('leave', () => {
