@@ -29,6 +29,7 @@
   <h2>Room <span id="lcode" class="code"></span></h2>
   <div class="row"><button id="copy" data-i18n="copy"></button><button id="rename" data-i18n="rename"></button><button id="addbot" class="hidden" data-i18n="addbot"></button><button id="rulesLobby" class="ghost" data-i18n="rules"></button><button id="leaveLobby" class="danger" data-i18n="leaveRoom"></button></div>
   <ul id="lplayers" class="plain"></ul>
+  <button id="readyBtn" class="primary hidden"></button>
   <div id="settings" class="settings"></div>
   <p id="lhint" class="sub"></p>
   <button id="start" class="primary hidden" data-i18n="start"></button>
@@ -41,27 +42,32 @@
     <div class="row"><div id="hostbtns" class="row"></div><select class="langsel" aria-label="Language"></select><a id="voice" class="btn hidden" target="_blank" rel="noopener" data-i18n="voiceBtn"></a><button id="rulesGame" data-i18n="rules"></button><button id="mute"></button><button id="narr"></button><button id="leaveGame" class="danger" data-i18n="leave"></button></div>
   </header>
   <div id="timerbar"><i></i></div>
-  <div id="scene"></div>
-  <div id="rolecard"><div id="role" class="role"></div></div>
-  <div id="banner"></div>
-  <div id="tip" class="hidden"></div>
-  <section id="ballot" class="ballot hidden"></section>
-  <section id="players" class="grid"></section>
-  <section class="panel">
-    <nav>
-      <button data-tab="chat" class="on" data-i18n="tabChat"></button>
-      <button data-tab="log" data-i18n="tabLog"></button>
-      <button data-tab="recap" data-i18n="tabRecap"></button>
-      <button data-tab="dead" class="hidden" data-i18n="tabDead"></button>
-    </nav>
-    <div id="chat" class="feed"></div>
-    <div id="log" class="feed hidden"></div>
-    <div id="recap" class="feed hidden"></div>
-    <div id="deadfeed" class="feed hidden"></div>
-    <div id="typing" class="tag"></div>
-    <div id="emojis" class="emojis"></div>
-    <form id="chatform"><input id="msg" data-i18n-ph="msgPh" maxlength="300" autocomplete="off"><button class="primary" data-i18n="send"></button></form>
-  </section>
+  <div id="layout">
+    <div id="left">
+      <div id="scene"></div>
+      <div id="rolecard"><div id="role" class="role"></div></div>
+      <div id="banner"></div>
+      <div id="tip" class="hidden"></div>
+      <section id="metro" class="hidden"><div id="mapbar"></div><div id="map"></div></section>
+      <section id="ballot" class="ballot hidden"></section>
+      <section id="players" class="grid"></section>
+    </div>
+    <section class="panel" id="chatpanel">
+      <nav>
+        <button data-tab="chat" class="on" data-i18n="tabChat"></button>
+        <button data-tab="log" data-i18n="tabLog"></button>
+        <button data-tab="recap" data-i18n="tabRecap"></button>
+        <button data-tab="dead" class="hidden" data-i18n="tabDead"></button>
+      </nav>
+      <div id="chat" class="feed"></div>
+      <div id="log" class="feed hidden"></div>
+      <div id="recap" class="feed hidden"></div>
+      <div id="deadfeed" class="feed hidden"></div>
+      <div id="typing" class="tag"></div>
+      <div id="emojis" class="emojis"></div>
+      <form id="chatform"><input id="msg" data-i18n-ph="msgPh" maxlength="300" autocomplete="off"><button class="primary" data-i18n="send"></button></form>
+    </section>
+  </div>
 </main>
 <dialog id="rules"><div id="rulesbody"></div><form method="dialog"><button class="primary">OK</button></form></dialog>
 <div id="reveal" class="hidden"><div class="rcard"><div class="face front"></div><div class="face back"></div></div></div>

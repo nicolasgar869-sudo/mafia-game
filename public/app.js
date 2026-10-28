@@ -247,7 +247,7 @@ function render() {
   const live = ['night', 'day', 'lastwords'].includes(S.phase);
   $('#hostbtns').innerHTML = S.isHost && live ? `<button id="pause">${S.paused ? '▶' : '⏸'}</button><button id="skipphase">⏭</button>` : '';
   $('#pause') && ($('#pause').onclick = () => socket.emit('pause')); $('#skipphase') && ($('#skipphase').onclick = () => socket.emit('skipphase'));
-  renderScene(); renderBanner(); renderTip(); renderBallot(); renderPlayers(); renderFeeds();
+  renderScene(); renderBanner(); renderTip(); renderMetro(); renderBallot(); renderPlayers(); renderFeeds();
 }
 
 // night/day skyline: one house per player, windows go dark when a player dies
@@ -278,13 +278,19 @@ function renderTip() {
 // ---------- lobby ----------
 function renderLobby() {
   show('lobby'); $('#lcode').textContent = S.code; $('#addbot').classList.toggle('hidden', !S.isHost);
-  $('#lplayers').innerHTML = S.players.map(p => `<li><span>${avatar(p)}${esc(p.name)}</span><span class="tag">${p.id === S.me ? t('tYou') + ' ' : ''}${p.id === S.hostId ? t('tHost') + ' ' : ''}${p.bot ? t('tBot') + ' ' : p.connected ? '' : t('tOff')}${S.isHost && p.id !== S.me ? ` <button data-kick="${p.id}">${t('kick')}</button>` : ''}</span></li>`).join('');
+  const PER = { calm: '😌 Calm', paranoid: '😰 Paranoid', quiet: '🤫 Quiet', loud: '📣 Loud accuser' };
+  $('#lplayers').innerHTML = S.players.map(p => `<li><span>${avatar(p)}${esc(p.name)}</span><span class="tag">${p.id === S.me ? t('tYou') + ' ' : ''}${p.id === S.hostId ? t('tHost') + ' ' : ''}${p.bot ? t('tBot') + ' ' : p.connected ? '' : t('tOff')}${p.ready && !p.bot && p.id !== S.hostId ? '✅ ready ' : ''}${S.isHost && p.bot ? `<select data-persona="${p.id}">${Object.entries(PER).map(([k, v]) => `<option value="${k}" ${p.persona === k ? 'selected' : ''}>${v}</option>`).join('')}</select> <button data-botname="${p.id}">✏️</button>` : ''}${S.isHost && p.id !== S.me ? ` <button data-kick="${p.id}">${t('kick')}</button>` : ''}</span></li>`).join('');
   document.querySelectorAll('[data-kick]').forEach(b => b.onclick = () => socket.emit('kick', b.dataset.kick));
+  document.querySelectorAll('[data-persona]').forEach(e => e.onchange = () => socket.emit('botconfig', { id: e.dataset.persona, persona: e.value }));
+  document.querySelectorAll('[data-botname]').forEach(b => b.onclick = () => { const n = prompt('Bot name:'); if (n) socket.emit('botconfig', { id: b.dataset.botname, name: n }); });
+  const me = S.players.find(p => p.id === S.me), waiting = S.players.filter(p => !p.bot && p.connected && p.id !== S.hostId && !p.ready);
+  const rb = $('#readyBtn'); rb.classList.toggle('hidden', S.isHost); rb.textContent = me?.ready ? '✅ Ready (tap to undo)' : "I'm ready";
   const enough = S.players.length >= S.min;
-  $('#start').classList.toggle('hidden', !S.isHost); $('#start').disabled = !enough;
-  $('#lhint').textContent = S.isHost ? (enough ? t('readyH') : t('waitN', S.players.length, S.min)) : t('waitHost');
+  $('#start').classList.toggle('hidden', !S.isHost); $('#start').disabled = !enough || waiting.length > 0;
+  $('#lhint').textContent = S.isHost ? (!enough ? t('waitN', S.players.length, S.min) : waiting.length ? 'Waiting for ready: ' + waiting.map(p => p.name).join(', ') : t('readyH')) : t('waitHost');
   renderSettings();
 }
+$('#readyBtn').onclick = () => socket.emit('ready');
 function renderSettings() {
   const el = $('#settings'), s = S.set;
   if (!S.isHost) {
@@ -297,7 +303,7 @@ function renderSettings() {
   const chk = (n, l, v) => `<label><input type="checkbox" name="${n}" ${v ? 'checked' : ''}>${l}</label>`;
   el.innerHTML = `<h3>Game</h3>${num('night', 'Seconds per night turn', s.night)}${num('day', 'Day length (seconds)', s.day)}${num('mafia', 'Mafia count (0 = automatic)', s.mafia)}
     <label>Bot difficulty<select name="botLevel">${['easy', 'normal', 'hard'].map(l => `<option ${s.botLevel === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    <div class="chk">${chk('reveal', 'Reveal role on death', s.reveal)}${chk('lastWords', 'Last words', s.lastWords)}${chk('events', 'Random events', s.events)}${chk('anon', 'Anonymous voting', s.anon)}${chk('filter', 'Profanity filter', s.filter)}</div>
+    <div class="chk">${chk('reveal', 'Reveal role on death', s.reveal)}${chk('lastWords', 'Last words', s.lastWords)}${chk('events', 'Random events', s.events)}${chk('anon', 'Anonymous voting', s.anon)}${chk('filter', 'Profanity filter', s.filter)}${chk('metro', 'Metropolitan mode (map + IP)', s.metro)}</div>
     <label>Voice chat link<input type="text" name="voice" placeholder="https://meet.google.com/..." value="${esc(s.voice)}"></label>
     <h3>Roles</h3><div class="chk">${BASIC.map(k => chk(k, nm(k), s.roles[k])).join('')}</div>
     <h3 class="unique">${t('rUnique')}</h3><div class="chk unique">${UNIQUE.map(k => chk(k, nm(k), s.roles[k])).join('')}${chk('lovers', 'Lovers', s.lovers)}</div>`;
@@ -307,7 +313,7 @@ $('#settings').onchange = () => {
   const g = n => $('#settings').querySelector(`[name=${n}]`), roles = {};
   [...BASIC, ...UNIQUE].forEach(k => roles[k] = g(k).checked);
   socket.emit('settings', { night: g('night').value, day: g('day').value, mafia: g('mafia').value, voice: g('voice').value, botLevel: g('botLevel').value, roles,
-    ...Object.fromEntries(['reveal', 'lastWords', 'events', 'anon', 'filter', 'lovers'].map(k => [k, g(k).checked])) });
+    ...Object.fromEntries(['reveal', 'lastWords', 'events', 'anon', 'filter', 'lovers', 'metro'].map(k => [k, g(k).checked])) });
 };
 
 // ---------- gameplay ----------
@@ -331,6 +337,57 @@ function actions() {
 function canHold() {
   const f = S.done.fin, r = S.role;
   return S.alive && S.phase === 'night' && S.turn === (isM(r) ? 'mafia' : r) && ((r === 'vigilante' && S.shots > 0 && !f.vigilante) || (r === 'witch' && !f.witch && (S.potions.save + S.potions.poison > 0)) || (r === 'serialkiller' && !f.serialkiller) || (r === 'silencer' && !f.silencer));
+}
+
+// ---------- metropolitan map + market (English only) ----------
+const DN = { financial: 'Financial Center', industrial: 'Industrial Ward', hub: 'Central Hub', docks: 'The Docks', heights: 'Residential Heights' };
+const DY = { financial: 35, industrial: 15, hub: 10, docks: 20, heights: 15 };
+const DA = { hub: ['financial', 'industrial', 'docks', 'heights'], financial: ['hub', 'industrial', 'docks'], industrial: ['hub', 'financial', 'heights'], docks: ['hub', 'financial', 'heights'], heights: ['hub', 'industrial', 'docks'] };
+const FACI = { financial: ['Freeze Assets', 'player'], industrial: ['Sabotage', 'district'], hub: ['Subpoena', 'player'], docks: ['Contraband', null], heights: ['Eavesdrop', null] };
+const FHINT = { financial: 'Freeze a player\'s IP today', industrial: 'Disable another district\'s facility tomorrow', hub: 'Publicly reveal a player\'s recent moves', docks: 'Next night action ignores jammers', heights: 'Intercept a line from a private channel' };
+const ddist = (a, b) => (a === b ? 0 : DA[a].includes(b) ? 1 : 2);
+const livingOpts = self => S.players.filter(p => p.alive && !p.spectator && (self || p.id !== S.me)).map(p => [p.id, p.name]);
+function choose(title, opts, cb) {
+  $('#rulesbody').innerHTML = `<h2>${esc(title)}</h2>` + opts.map(o => `<p><button data-v="${o[0]}">${esc(o[1])}</button></p>`).join('');
+  $('#rulesbody').querySelectorAll('[data-v]').forEach(b => b.onclick = () => { $('#rules').close(); cb(b.dataset.v); });
+  $('#rules').showModal();
+}
+const ITEMS = [
+  ['Judicial and voting', [['proxy', 'Buy an extra vote', 25, 'player'], ['indict', 'Call Special Indictment (vote now)', 40], ['donate', 'Donate 25 to your faction fund', 25], ['veto', 'Executive Veto (spends 100 from the fund)', 0]]],
+  ['Logistics', [['longrange', 'Long-Range Kit (reach targets 2 districts away)', 35, null, 1]]],
+  ['Intel', [['wiretap', 'Untraceable Wiretap (player or district)', 50, 'both', 1], ['scraps', 'Intercept Scraps', 35]]],
+  ['Black Market', [['kevlar', 'Kevlar Body Armor', 60, null, 1], ['jammer', 'Signal Jammer (district)', 40, 'district', 1], ['dossier', 'Fabricated Dossier (frame a player)', 40, 'player', 1]]],
+];
+function openShop() {
+  $('#rulesbody').innerHTML = `<h2>🛒 Market · ${S.ip} IP</h2><p class="tag">${S.discount ? 'Your faction holds the Industrial Ward: Black Market items are 25% off. ' : ''}Night actions on targets 1 district away cost +10 IP; 2 away needs a Long-Range Kit.</p>` +
+    ITEMS.map(([h, items]) => `<h3>${h}</h3>` + items.map(([id, label, cost, , bm]) => `<p><button data-item="${id}">${esc(label)}${id === 'veto' ? ` (fund ${S.fund}${S.veto ? ', armed' : ''})` : ` · ${bm && S.discount ? Math.ceil(cost * .75) : cost} IP`}</button></p>`).join('')).join('');
+  $('#rulesbody').querySelectorAll('[data-item]').forEach(b => b.onclick = () => {
+    const it = ITEMS.flatMap(x => x[1]).find(i => i[0] === b.dataset.item), tg = it[3]; $('#rules').close();
+    if (!tg) return socket.emit('act', { type: 'buy', item: it[0] });
+    const opts = tg === 'district' ? Object.entries(DN) : tg === 'player' ? livingOpts(true) : [...livingOpts(true), ...Object.entries(DN)];
+    choose(it[1], opts, v => socket.emit('act', { type: 'buy', item: it[0], target: v }));
+  });
+  $('#rules').showModal();
+}
+function renderMetro() {
+  const el = $('#metro');
+  if (!S.metro || S.spectator) return el.classList.add('hidden');
+  el.classList.remove('hidden');
+  const day = S.phase === 'day' && S.alive;
+  $('#mapbar').innerHTML = `<b>💰 ${S.ip ?? 0} IP</b><span class="tag">📍 ${DN[S.pos] || '?'}${S.frozen ? ' · ❄️ frozen' : ''}${S.kevlar ? ' · 🦺 armor' : ''}${S.longRange ? ' · 🎯 kit' : ''}${S.smug ? ' · 📦 contraband' : ''} · fund ${S.fund}${S.veto ? ' (veto armed)' : ''}</span><button id="shopBtn" ${day ? '' : 'disabled'}>🛒 Market</button>`;
+  $('#shopBtn').onclick = openShop;
+  $('#map').innerHTML = Object.keys(DN).map(d => {
+    const here = S.players.filter(p => p.pos === d && p.alive && !p.spectator);
+    const mv = day && d !== S.pos && !S.moved ? `<button data-move="${d}">${ddist(S.pos, d) === 2 ? 'Express ($15)' : 'Move here'}</button>` : '';
+    const fc = day && S.pos === d && !S.facUsed && !S.sab[d] ? `<button data-fac="${d}" title="${FHINT[d]}">${FACI[d][0]}</button>` : '';
+    return `<div class="tile t-${d} ${S.pos === d ? 'me' : ''} ${S.sab[d] ? 'sab' : ''}"><div class="tn">${DN[d]} <span class="tag">+${DY[d]}/night</span>${S.leads[d] ? ' <span class="lead">★ you lead</span>' : ''}${S.sab[d] ? ' <span class="tag">⚠ sabotaged</span>' : ''}</div><div class="tp">${here.map(p => `<span class="chip">${avatar(p)}${esc(p.name)}</span>`).join('') || '<span class="tag">empty</span>'}</div><div class="acts">${mv}${fc}</div></div>`;
+  }).join('');
+  document.querySelectorAll('[data-move]').forEach(b => b.onclick = () => socket.emit('act', { type: 'move', target: b.dataset.move }));
+  document.querySelectorAll('[data-fac]').forEach(b => b.onclick = () => {
+    const k = FACI[b.dataset.fac][1];
+    if (!k) return socket.emit('act', { type: 'facility' });
+    choose(FACI[b.dataset.fac][0], k === 'player' ? livingOpts(false) : Object.entries(DN).filter(([d]) => d !== 'industrial'), v => socket.emit('act', { type: 'facility', target: v }));
+  });
 }
 function renderBanner() {
   const b = $('#banner'), lwName = S.players.find(p => p.id === S.lw)?.name, living = S.players.filter(p => p.alive && !p.spectator).length;
@@ -363,6 +420,7 @@ function renderBallot() {
   el.classList.remove('hidden');
   const lv = S.players.filter(p => p.alive && !p.spectator), need = Math.floor(lv.length / 2) + 1, by = {};
   Object.entries(S.votes).forEach(([v, tg]) => { if (tg) (by[tg] = by[tg] || []).push(v); });
+  Object.entries(S.proxy || {}).forEach(([id, n]) => { for (let i = 0; i < n; i++) (by[id] = by[id] || []).push('$'); });   // bought votes
   const rows = lv.filter(p => by[p.id]).sort((a, b) => by[b.id].length - by[a.id].length);
   el.innerHTML = `<div class="bh"><span>${t('trial')}</span><span class="tag">${t('need', need)}${S.set.anon ? t('hiddenV') : ''}</span></div>` +
     (rows.length ? rows.map(p => { const n = by[p.id].length; return `<div class="brow ${n >= need ? 'lethal' : ''} ${n > (prevCounts[p.id] || 0) ? 'bump' : ''}"><span class="bn">${avatar(p)}${esc(p.name)}</span><div class="bar"><i style="width:${Math.min(100, n / need * 100)}%"></i></div><span class="vs">${by[p.id].map(v => avatar(S.players.find(x => x.id === v))).join('')}</span><b>${n}</b></div>`; }).join('') : `<div class="tag">${t('noVotes')}</div>`);
@@ -377,7 +435,7 @@ function renderPlayers() {
     const flags = (S.silenced === p.id ? `<span class="tag">${t('silencedTag')}</span>` : '') + (p.muted ? `<span class="tag">${t('mutedTag')}</span>` : '');
     const btns = mine.map(a => `<button data-id="${p.id}" data-type="${a.type}">${a.type === 'vote' ? '🗳️ ' : ''}${a.label}</button>`).join('') + (canWhisper && p.alive && p.id !== S.me ? `<button data-w="${p.id}" class="ghost">${t('whisper')}</button>` : '');
     const mod = p.id !== S.me && !p.bot ? `<button class="mini" data-mute="${esc(p.name)}" title="Mute for me">${mutedNames.has(p.name) ? '🔈' : '🔇'}</button>` + (S.isHost ? `<button class="mini hm" data-hmute="${p.id}" title="Mute for everyone">🚫</button>` : `<button class="mini hm" data-report="${p.id}" title="Report">⚑</button>`) : '';
-    return `<div class="pcard ${p.alive ? '' : 'dead'} ${pick === p.id ? 'picked' : ''}" data-yv="${t('yourvote')}"><span class="n">${avatar(p)}${esc(p.name)}${p.connected ? '' : ' ⚠'}${mod}</span>${tag}${flags}<div class="acts">${btns}</div></div>`;
+    return `<div class="pcard ${p.alive ? '' : 'dead'} ${pick === p.id ? 'picked' : ''}" data-yv="${t('yourvote')}"><span class="n">${avatar(p)}${esc(p.name)}${p.connected ? '' : ' ⚠'}${mod}</span>${tag}${S.metro && p.pos ? `<span class="tag">📍 ${DN[p.pos]}</span>` : ''}${flags}<div class="acts">${btns}</div></div>`;
   }).join('');
   document.querySelectorAll('.pcard [data-type]').forEach(b => b.onclick = () => socket.emit('act', { type: b.dataset.type, target: b.dataset.id }));
   document.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { const v = prompt(t('whisperQ')); if (v) socket.emit('whisper', { to: b.dataset.w, text: v }); });

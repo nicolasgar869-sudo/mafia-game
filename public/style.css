@@ -118,3 +118,21 @@ body.night{--sky1:#070b22;--sky2:#1c2a63;--house:#0d1230;--roof:#070a1c;--wlit:#
 #tip{background:linear-gradient(135deg,rgba(240,185,90,.18),rgba(255,138,91,.14));border:1px solid var(--accent);border-radius:12px;padding:10px 14px}
 button.mini.hm{margin-left:2px!important}
 .langsel{padding:6px 8px;font-size:.85rem}
+/* ---- v5: chat on the right + metro map ---- */
+#game{max-width:1240px}
+#layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px}
+#left{overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:2px 4px 8px 0;min-height:0}
+#chatpanel{min-height:0}
+@media (max-width:900px){#layout{display:flex;flex-direction:column;overflow-y:auto}#left{overflow:visible;flex:none}#chatpanel{min-height:360px;flex:none}}
+#metro{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px;display:grid;gap:8px;backdrop-filter:blur(8px)}
+#mapbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}#mapbar button{margin-left:auto;padding:4px 12px}
+#map{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"financial industrial" "hub hub" "docks heights";gap:8px}
+.t-financial{grid-area:financial}.t-industrial{grid-area:industrial}.t-hub{grid-area:hub}.t-docks{grid-area:docks}.t-heights{grid-area:heights}
+.tile{border:1px solid var(--line);border-radius:14px;padding:8px 10px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:6px;min-height:84px}
+.tile.me{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 20px -8px var(--accent2)}
+.tile.sab{border-style:dashed;opacity:.8}
+.tile .tn{font-family:Fraunces,serif;font-weight:600}.tile .tp{display:flex;flex-wrap:wrap;gap:4px}
+.chip{display:inline-flex;align-items:center;font-size:.8rem;background:var(--card);border-radius:999px;padding:1px 8px 1px 2px}.chip .av{width:18px;height:18px;font-size:.6rem;margin-right:4px}
+.lead{font-size:.72rem;font-weight:700;color:var(--accent)}
+.tile .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}.tile .acts button{padding:4px 10px;font-size:.85rem}
+select[data-persona]{padding:2px 6px;font-size:.8rem}
