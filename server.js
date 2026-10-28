@@ -9,17 +9,20 @@ const MAX_PLAYERS = 15, MIN_PLAYERS = 3, LAST_WORDS_SECS = 15, WHISPERS_PER_DAY 
 const BASIC = ['detective', 'doctor', 'vigilante', 'bodyguard', 'mayor', 'jester'];
 const NEUTRAL_UNIQUE = ['witch', 'escort', 'spy', 'serialkiller'];
 const MAFIA_ROLES = ['mafia', 'godfather', 'silencer'];
+const ORDER = ['mafia', 'doctor', 'bodyguard', 'escort', 'detective', 'witch', 'serialkiller', 'vigilante'];   // night turn order
 const BOTNAMES = ['Ada', 'Ben', 'Cleo', 'Dex', 'Eli', 'Faye', 'Gus', 'Hana'];
 const BAD = /\b(fuck\w*|shit\w*|bitch\w*|asshole|cunt|dick)\b/gi;
 const rooms = {};
 const defaults = () => ({
-  night: 60, day: 120, mafia: 0, reveal: true, lastWords: true, events: false, anon: false, filter: true, lovers: false, voice: '',
+  night: 20, day: 120, mafia: 0, reveal: true, lastWords: true, events: false, anon: false, filter: true, lovers: false, voice: '',
   roles: { detective: true, doctor: true, vigilante: false, bodyguard: false, mayor: false, jester: false, godfather: false,
     witch: false, escort: false, spy: false, serialkiller: false, silencer: false },
 });
 
 // ---------- helpers ----------
 const isM = p => MAFIA_ROLES.includes(p.role);
+const grp = p => (isM(p) ? 'mafia' : p.role);
+const sn = q => (q.bot ? q.name.replace('Bot ', '') : q.name);
 const newCode = () => { let c; do { c = Math.random().toString(36).slice(2, 6).toUpperCase(); } while (rooms[c]); return c; };
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const list = r => Object.values(r.players);
@@ -38,7 +41,7 @@ function view(r, me) {
   return {
     code: r.code, me: me.id, isHost: r.host === me.id, role: me.role, alive: me.alive, spectator: !!me.spectator, shots: me.shots || 0,
     phase: r.phase, day: r.day, endsAt: r.endsAt, winner: r.winner, min: MIN_PLAYERS, set: r.set, lw: r.lw, hostId: r.host,
-    paused: !!r.paused, event: r.event, silenced: r.phase === 'day' ? r.silenced : null, skipN: Object.keys(r.skip || {}).length,
+    paused: !!r.paused, turn: r.phase === 'night' ? r.turn : null, step: r.step, steps: (r.order || []).length, dur: r.dur, event: r.event, silenced: r.phase === 'day' ? r.silenced : null, skipN: Object.keys(r.skip || {}).length,
     potions: me.potions || null, lover: me.lover ? r.players[me.lover]?.name : null, whispers: me.whispers,
     players: list(r).map(q => ({
       id: q.id, name: q.name, av: q.av, bot: !!q.bot, alive: q.alive, connected: q.connected, spectator: !!q.spectator,
@@ -54,11 +57,12 @@ function view(r, me) {
 function emit(r) { list(r).forEach(p => p.sid && io.to(p.sid).emit('state', view(r, p))); }
 
 // ---------- game flow ----------
-const PH = { night: r => endNight(r), day: r => endDay(r), lastwords: r => endLastWords(r) };
+const PH = { night: r => nextStep(r), day: r => endDay(r), lastwords: r => endLastWords(r) };
 function setPhase(r, phase, secs) {
   clearTimeout(r.timer);
   r.phase = phase; r.paused = false; r.remain = null;
   r.endsAt = secs ? Date.now() + secs * 1000 : null;
+  r.dur = secs ? secs * 1000 : 0;
   if (secs) r.timer = setTimeout(() => PH[phase](r), secs * 1000);
 }
 function reset(r) {
@@ -80,8 +84,9 @@ function startGame(r) {
     if (sc < bestScore) { bestScore = sc; best = a; }
   }
   ps.forEach((p, j) => Object.assign(p, { role: best[j], alive: true, notes: [], whispers: [], lover: null, shots: best[j] === 'vigilante' ? 1 : 0, potions: best[j] === 'witch' ? { save: 1, poison: 1 } : null }));
+  r.order = ORDER.filter(g => ps.some(p => grp(p) === g));
   if (s.lovers && n >= 4) { const [a, b] = shuffle([...ps]); a.lover = b.id; b.lover = a.id; }
-  Object.assign(r, { day: 0, log: [], chat: [], mchat: [], winner: null, lw: null, story: [], awards: [], voteTotals: {}, msgs: {}, event: null, silenced: null });
+  Object.assign(r, { day: 0, log: [], chat: [], mchat: [], winner: null, lw: null, story: [], awards: [], voteTotals: {}, msgs: {}, ment: {}, event: null, silenced: null });
   log(r, `The game begins with ${n} players and ${m} Mafia hiding among them.`);
   startNight(r);
 }
@@ -91,22 +96,44 @@ function startNight(r) {
     fin: {}, acts: [], votes: {}, botKill: null, skip: {}, silenced: null });
   r.event = r.set.events && r.day > 1 && Math.random() < 0.3 ? pick(['fullmoon', 'blackout']) : null;
   r.insLeft = r.event === 'fullmoon' ? 2 : 1;
-  setPhase(r, 'night', r.set.night);
   log(r, `Night ${r.day} falls over the town.`);
   if (r.event === 'fullmoon') log(r, 'A full moon rises. The Detective may investigate twice tonight.');
   if (r.event === 'blackout') log(r, 'A storm is coming. There will be a blackout: no chatting tomorrow.');
-  botNight(r);
-  emit(r);
+  r.step = -1;
+  nextStep(r);
 }
-function nightComplete(r) {
-  const m = living(r).filter(isM);
-  const agreed = m.every(p => r.mv[p.id]) && new Set(m.map(p => r.mv[p.id])).size === 1;
-  const need = (role, done) => !livingBy(r, role).length || done;
-  const w = livingBy(r, 'witch')[0];
-  return agreed && need('doctor', r.heal !== null) && need('detective', r.inspected) && need('bodyguard', r.guard !== null)
-    && need('escort', r.block !== null) && need('silencer', r.fin.silencer) && need('serialkiller', r.fin.serialkiller)
-    && (!w || w.potions.save + w.potions.poison === 0 || r.fin.witch)
-    && (!livingBy(r, 'vigilante').some(p => p.shots > 0) || r.fin.vigilante);
+// Night runs one role at a time: Mafia, Doctor, Bodyguard, Escort, Detective, Witch, Serial Killer, Vigilante.
+function stepComplete(r) {
+  const t = r.turn, ac = living(r).filter(p => grp(p) === t);
+  switch (t) {
+    case 'mafia': return ac.every(p => r.mv[p.id]) && new Set(ac.map(p => r.mv[p.id])).size === 1 && (!ac.some(p => p.role === 'silencer') || !!r.fin.silencer);
+    case 'doctor': return r.heal !== null;
+    case 'bodyguard': return r.guard !== null;
+    case 'escort': return r.block !== null;
+    case 'detective': return r.inspected;
+    case 'witch': return !!r.fin.witch;
+    case 'serialkiller': return !!r.fin.serialkiller;
+    case 'vigilante': return !!r.fin.vigilante;
+  }
+  return true;
+}
+function canAct(r, t) {
+  const ac = living(r).filter(p => grp(p) === t);
+  if (!ac.length) return false;                                   // role exists but is dead: fake a short turn so nobody can tell
+  if (t === 'vigilante') return ac.some(p => p.shots > 0);
+  if (t === 'witch') return ac.some(p => p.potions.save + p.potions.poison > 0);
+  return true;
+}
+function nextStep(r) {
+  if (r.phase !== 'night' && r.step !== -1) return;
+  clearTimeout(r.timer);
+  r.advancing = false;
+  r.step++;
+  if (r.step >= r.order.length) return endNight(r);
+  const t = (r.turn = r.order[r.step]), act = canAct(r, t);
+  setPhase(r, 'night', act ? r.set.night * (t === 'mafia' ? 2 : 1) : 3);
+  if (act) living(r).filter(p => p.bot && grp(p) === t).forEach(p => later(r, 1000 + Math.random() * 2500, () => { if (r.phase === 'night' && r.turn === t && p.alive) botAct(r, p); }));
+  emit(r);
 }
 function kill(r, p, how) {
   p.alive = false;
@@ -133,7 +160,7 @@ function endNight(r) {
   const target = victims.length ? pick(victims) : null;
   r.eff = { heal: bl('doctor') ? null : r.heal, guard: bl('bodyguard') ? null : r.guard, save: bl('witch') ? null : r.wsave };
   setPhase(r, 'day', r.set.day);
-  r.votes = {}; r.skip = {}; r.wc = {}; r.silenced = null;
+  r.votes = {}; r.skip = {}; r.wc = {}; r.silenced = null; r.ment = {};
   const before = r.log.length;
   log(r, `Morning ${r.day} arrives.`);
   if (target) attack(r, target, 'killed in the night');
@@ -190,6 +217,7 @@ function doAct(r, p, { type, target }) {
   if (!r || !p.alive || r.paused) return;
   const t = r.players[target], R = p.role;
   if (r.phase === 'night') {
+    if (grp(p) !== r.turn) return;
     if (type === 'hold') { if (['vigilante', 'witch', 'serialkiller', 'silencer'].includes(R)) r.fin[R] = true; else return; }
     else {
       if (!t || !t.alive) return;
@@ -211,7 +239,8 @@ function doAct(r, p, { type, target }) {
       } else return;
       r.acts.push(`${p.name} (${R}) → ${t.name}`);
     }
-    nightComplete(r) ? endNight(r) : emit(r);
+    if (stepComplete(r) && !r.advancing) { r.advancing = true; clearTimeout(r.timer); r.endsAt = Date.now() + 900; r.timer = setTimeout(() => nextStep(r), 900); }
+    emit(r);
   } else if (r.phase === 'day') {
     if (type === 'skipday') {
       r.skip[p.id] = true;
@@ -232,22 +261,53 @@ function botAct(r, p) {
   if (isM(p)) {
     if (R === 'silencer') doAct(r, p, { type: 'silence', target: id(nonM) });
     const human = Object.entries(r.mv).find(([v]) => !r.players[v].bot);
-    if (!r.botKill || !r.players[r.botKill]?.alive) r.botKill = human ? human[1] : id(nonM);
+    if (!r.botKill || !r.players[r.botKill]?.alive) { r.botKill = human ? human[1] : id(nonM); r.mchat.push({ name: p.name, text: `Let's take out ${r.players[r.botKill]?.name}.`, ts: Date.now() }); }
     return doAct(r, p, { type: 'kill', target: r.botKill });
   }
   const map = { doctor: ['heal', id(living(r))], detective: ['inspect', id(others)], bodyguard: ['guard', id(others)], escort: ['block', id(others)], serialkiller: ['sk', id(others)] };
   if (map[R]) doAct(r, p, { type: map[R][0], target: map[R][1] });
   else if (R === 'vigilante' || R === 'witch') doAct(r, p, { type: 'hold' });
 }
-function botNight(r) {
-  const d = r.day;
-  list(r).filter(p => p.bot && p.alive).forEach(p => later(r, 1000 + Math.random() * 3000, () => { if (r.phase === 'night' && r.day === d && p.alive) botAct(r, p); }));
+// Bots chat and vote using only PUBLIC information (who was mentioned, who has been quiet). They never peek at hidden roles.
+function mention(r, from, text) {
+  list(r).forEach(q => { if (q.alive && q.id !== from.id && text.toLowerCase().includes(sn(q).toLowerCase())) r.ment[q.id] = (r.ment[q.id] || 0) + 1; });
+}
+function say(r, p, text) {
+  if (r.phase !== 'day' || !p.alive || p.id === r.silenced || r.event === 'blackout') return;
+  r.chat.push({ name: p.name, text, ts: Date.now() }); r.msgs[p.id] = (r.msgs[p.id] || 0) + 1;
+  mention(r, p, text); emit(r);
+}
+function botSay(r, p) {
+  const c = living(r).filter(q => q.id !== p.id && !(isM(p) && isM(q)));       // a Mafia bot knows its own teammates, nothing else
+  if (!c.length) return;
+  const hot = [...c].sort((a, b) => (r.ment[b.id] || 0) - (r.ment[a.id] || 0))[0];
+  const quiet = [...c].sort((a, b) => (r.msgs[a.id] || 0) - (r.msgs[b.id] || 0))[0];
+  const dead = r.log.slice().reverse().find(l => l.day === r.day && /was (killed|shot|poisoned)/.test(l.text));
+  const o = [];
+  if ((r.ment[hot.id] || 0) > 0) o.push({ t: `I agree, ${sn(hot)} seems suspicious to me.`, s: hot }, { t: `${sn(hot)}, a lot of people are talking about you. Care to explain?`, s: hot });
+  o.push({ t: `${sn(quiet)} has been very quiet. Mafia?`, s: quiet }, { t: `Not sure, but ${sn(quiet)} feels off to me.`, s: quiet });
+  if (dead) o.push({ t: `Poor ${dead.text.split(' was ')[0]}... who could have done this?` });
+  o.push({ t: r.day === 1 ? 'No info yet. Everyone say something so we can read each other.' : 'We cannot afford a wrong vote today.' }, { t: "I'm just a regular townsperson, I swear." }, { t: 'Let us not rush the vote.' });
+  const m = pick(o); if (m.s) p.sus = m.s.id;
+  say(r, p, m.t);
+}
+function botVote(r, p) {
+  const c = living(r).filter(q => q.id !== p.id && !(isM(p) && isM(q)));
+  const hot = [...c].sort((a, b) => (r.ment[b.id] || 0) - (r.ment[a.id] || 0))[0];
+  return (c.find(q => q.id === p.sus) || ((r.ment[hot?.id] || 0) > 0 ? hot : null) || pick(c))?.id;
+}
+function botReact(r, from, text) {
+  list(r).filter(b => b.bot && b.alive && b.id !== from.id && text.toLowerCase().includes(sn(b).toLowerCase())).forEach(b => {
+    if (!(isM(b) && isM(from))) b.sus = from.id;
+    if (Math.random() < 0.75) later(r, 2000 + Math.random() * 3000, () => say(r, b, pick([`Why me, ${sn(from)}? I'm innocent!`, "That's not fair. I've been trying to help.", `${sn(from)}, you are accusing me without proof.`, `Hmm, maybe ${sn(from)} is trying to deflect.`])));
+  });
 }
 function botDay(r) {
-  const d = r.day;
-  list(r).filter(p => p.bot && p.alive).forEach(p => later(r, 6000 + Math.random() * 14000, () => {
-    if (r.phase === 'day' && r.day === d && p.alive && !(p.id in r.votes)) doAct(r, p, { type: 'vote', target: pick(living(r).filter(q => q.id !== p.id))?.id });
-  }));
+  const d = r.day, ms = Math.max(5000, r.set.day * 1000), ok = () => r.phase === 'day' && r.day === d;
+  list(r).filter(p => p.bot && p.alive).forEach(p => {
+    for (let i = 0; i < 2; i++) later(r, ms * (0.08 + Math.random() * 0.5), () => { if (ok()) botSay(r, p); });
+    later(r, ms * (0.6 + Math.random() * 0.25), () => { if (ok() && p.alive && !(p.id in r.votes)) doAct(r, p, { type: 'vote', target: botVote(r, p) }); });
+  });
 }
 
 // ---------- sockets ----------
@@ -287,7 +347,7 @@ io.on('connection', socket => {
   socket.on('settings', s => {
     if (!host() || room.phase !== 'lobby') return;
     const S = room.set;
-    S.night = clamp(s.night, 20, 300, 60); S.day = clamp(s.day, 20, 600, 120); S.mafia = clamp(s.mafia, 0, 5, 0);
+    S.night = clamp(s.night, 10, 120, 20); S.day = clamp(s.day, 20, 600, 120); S.mafia = clamp(s.mafia, 0, 5, 0);
     ['reveal', 'lastWords', 'events', 'anon', 'filter', 'lovers'].forEach(k => { S[k] = !!s[k]; });
     const v = clean(s.voice).slice(0, 200); S.voice = /^https:\/\//.test(v) ? v : '';
     Object.keys(S.roles).forEach(k => { S.roles[k] = !!(s.roles && s.roles[k]); });
@@ -344,6 +404,7 @@ io.on('connection', socket => {
     room.msgs[player.id] = (room.msgs[player.id] || 0) + 1;
     const msg = { name: player.name, text: filt(room, text), ts: Date.now() };
     (room.phase === 'night' ? room.mchat : room.chat).push(msg);
+    if (room.phase === 'day') { mention(room, player, text); botReact(room, player, text); }
     emit(room);
   });
   socket.on('whisper', ({ to, text }) => {
@@ -358,6 +419,26 @@ io.on('connection', socket => {
   socket.on('typing', () => {
     if (!room || !canChat()) return;
     list(room).filter(p => p.sid && p.id !== player.id && (room.phase !== 'night' || isM(p))).forEach(p => io.to(p.sid).emit('typing', player.name));
+  });
+
+  socket.on('leave', () => {
+    const r = room, p = player; if (!r) return;
+    socket.leave(r.code); p.sid = null; p.connected = false;
+    if (r.host === p.id) {
+      const nh = list(r).find(q => !q.bot && q.connected && q.id !== p.id);
+      if (nh) r.host = nh.id; else { clearTimeout(r.timer); delete rooms[r.code]; room = player = null; return socket.emit('left'); }
+    }
+    if (['lobby', 'over'].includes(r.phase) || p.spectator) { delete r.players[p.id]; emit(r); }
+    else {
+      if (p.alive) kill(r, p, 'removed after leaving the game');
+      p.left = true;
+      if (!checkWin(r)) {
+        if (r.phase === 'night' && stepComplete(r)) nextStep(r);
+        else if (r.phase === 'day' && dayComplete(r)) endDay(r);
+        else emit(r);
+      }
+    }
+    room = player = null; socket.emit('left');
   });
 
   socket.on('disconnect', () => {
