@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="day">
+<div id="fog"></div><div id="fx"></div><div id="trans"><i class="sun"></i></div>
 <main id="home" class="screen">
   <div class="row" style="justify-content:space-between"><div class="logo">🎭</div><select class="langsel" aria-label="Language"></select></div>
   <h1>Mafia</h1>
@@ -20,6 +21,7 @@
   <input id="code" data-i18n-ph="codePh" maxlength="4" autocomplete="off">
   <button id="join" data-i18n="join"></button>
   <button id="tutorial" data-i18n="tutorial"></button>
+  <button id="tutorialMap">🗺️ Map mode tutorial</button>
   <div class="row"><button id="rulesHome" class="ghost" data-i18n="howto"></button><button id="achHome" class="ghost" data-i18n="ach"></button><a class="btn" href="history.html" data-i18n="history"></a></div>
   <p id="stats" class="sub"></p>
   <p id="err" class="error"></p>
@@ -39,7 +41,7 @@
 <main id="game" class="hidden">
   <header>
     <div class="title"><span id="phaseicon"></span><strong id="phase"></strong><span id="timer"></span></div>
-    <div class="row"><div id="hostbtns" class="row"></div><select class="langsel" aria-label="Language"></select><a id="voice" class="btn hidden" target="_blank" rel="noopener" data-i18n="voiceBtn"></a><button id="rulesGame" data-i18n="rules"></button><button id="mute"></button><button id="narr"></button><button id="leaveGame" class="danger" data-i18n="leave"></button></div>
+    <div class="row"><div id="hostbtns" class="row"></div><select class="langsel" aria-label="Language"></select><a id="voice" class="btn hidden" target="_blank" rel="noopener" data-i18n="voiceBtn"></a><button id="rulesGame" data-i18n="rules"></button><button id="mute"></button><button id="narr"></button><button id="hap"></button><button id="leaveGame" class="danger" data-i18n="leave"></button></div>
   </header>
   <div id="timerbar"><i></i></div>
   <div id="layout">
@@ -48,7 +50,7 @@
       <div id="rolecard"><div id="role" class="role"></div></div>
       <div id="banner"></div>
       <div id="tip" class="hidden"></div>
-      <section id="metro" class="hidden"><div id="mapbar"></div><div id="map"></div></section>
+      <section id="metro" class="hidden"><div id="mapbar"></div><div id="map"></div><div id="mapinfo"></div></section>
       <section id="ballot" class="ballot hidden"></section>
       <section id="players" class="grid"></section>
     </div>

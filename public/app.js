@@ -2,7 +2,7 @@ const $ = s => document.querySelector(s);
 const pid = localStorage.pid || (localStorage.pid = Math.random().toString(36).slice(2) + Date.now().toString(36));
 const socket = io();
 let S = null, tab = 'chat', prev = { phase: null, log: -1, turn: null }, prevCounts = {}, prevAlive = {};
-let muted = localStorage.muted === '1', narrOn = localStorage.narr === '1', ac;
+let muted = localStorage.muted === '1', narrOn = localStorage.narr === '1', ac, hapOn = localStorage.hap !== '0';
 let mutedNames = new Set(JSON.parse(localStorage.mutedNames || '[]'));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const show = id => ['home', 'lobby', 'game'].forEach(x => $('#' + x).classList.toggle('hidden', x !== id));
@@ -102,10 +102,16 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
   document.querySelectorAll('[data-i18n-ph]').forEach(e => e.placeholder = t(e.dataset.i18nPh));
   document.querySelectorAll('.langsel').forEach(s => { s.innerHTML = Object.entries(LANGS).map(([k, v]) => `<option value="${k}">${v}</option>`).join(''); s.value = lang; s.onchange = () => { lang = s.value; localStorage.lang = lang; applyI18n(); showStats(); if (S) render(); }; });
-  $('#mute').textContent = muted ? t('soundOff') : t('sound'); $('#narr').textContent = narrOn ? t('narr') : t('narrOff');
+  $('#mute').textContent = muted ? t('soundOff') : t('sound'); $('#narr').textContent = narrOn ? t('narr') : t('narrOff'); $('#hap').textContent = hapOn ? 'Haptics on' : 'Haptics off';
 }
 
-const avatar = p => !p ? '' : p.av ? `<span class="av emo">${esc(p.av)}</span>` : (() => { let h = 0; for (const c of p.name) h = (h * 31 + c.charCodeAt(0)) % 360; return `<span class="av" style="background:hsl(${h} 45% 42%)">${esc(p.name[0].toUpperCase())}</span>`; })();
+const avatar = p => {
+  if (!p) return '';
+  const fr = p.cos && p.cos.frame ? ' frame-' + p.cos.frame : '';
+  if (p.av) return `<span class="av emo${fr}">${esc(p.av)}</span>`;
+  let h = 0; for (const c of p.name) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `<span class="av${fr}" style="background:hsl(${h} 45% 42%)">${esc(p.name[0].toUpperCase())}</span>`;
+};
 const toast = m => { const e = $('#toast'); e.textContent = m; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 3200); };
 
 // ---------- rules + achievements dialogs ----------
@@ -116,10 +122,19 @@ function openRules() {
 }
 const ACH = ['first', 'survivor', 'jester', 'mafia', 'sharp', 'saver', 'vet', 'sk', 'love'];
 const got = () => new Set(JSON.parse(localStorage.ach || '[]'));
+const COS = [
+  { id: 'bronze', type: 'frame', name: 'Bronze frame', ach: 'first' }, { id: 'emerald', type: 'frame', name: 'Emerald frame', ach: 'survivor' },
+  { id: 'crimson', type: 'frame', name: 'Crimson frame', ach: 'mafia' }, { id: 'gold', type: 'frame', name: 'Gold frame', ach: 'vet' }, { id: 'pink', type: 'frame', name: 'Rose frame', ach: 'love' },
+  { id: 'cyan', type: 'color', name: 'Cyan chat name', ach: 'sharp' }, { id: 'mint', type: 'color', name: 'Mint chat name', ach: 'saver' },
+  { id: 'harlequin', type: 'back', name: 'Harlequin card back', ach: 'jester' }, { id: 'obsidian', type: 'back', name: 'Obsidian card back', ach: 'sk' },
+];
+const cosSel = () => JSON.parse(localStorage.cos || '{}');
 function openAch() {
-  const g = got();
-  $('#rulesbody').innerHTML = `<h2>🏆 ${t('ach')}</h2>` + ACH.map(a => `<p>${g.has(a) ? '✅' : '🔒'} ${g.has(a) ? t('a_' + a) : `<span class="tag">${t('locked')}: ${t('a_' + a).split(':')[1] || ''}</span>`}</p>`).join('');
-  $('#rules').showModal();
+  const g = got(), c = cosSel(), TYPES = { frame: 'Avatar frames', color: 'Chat colors', back: 'Card backs' };
+  $('#rulesbody').innerHTML = `<h2>🏆 ${t('ach')}</h2>` + ACH.map(a => `<p>${g.has(a) ? '✅' : '🔒'} ${g.has(a) ? t('a_' + a) : `<span class="tag">${t('locked')}: ${t('a_' + a).split(':')[1] || ''}</span>`}</p>`).join('') +
+    '<h2>🎨 Cosmetics</h2>' + Object.entries(TYPES).map(([ty, label]) => `<h3>${label}</h3><p><button data-cos="${ty}:">None${!c[ty] ? ' ✓' : ''}</button> ` + COS.filter(x => x.type === ty).map(x => g.has(x.ach) ? `<button data-cos="${ty}:${x.id}">${x.name}${c[ty] === x.id ? ' ✓' : ''}</button>` : `<span class="tag">🔒 ${x.name} (earn: ${t('a_' + x.ach).split(':')[0]})</span>`).join(' ') + '</p>').join('');
+  $('#rulesbody').querySelectorAll('[data-cos]').forEach(b => b.onclick = () => { const [ty, id] = b.dataset.cos.split(':'); const n = cosSel(); n[ty] = id; localStorage.cos = JSON.stringify(n); socket.emit('cos', n); openAch(); });
+  if (!$('#rules').open) $('#rules').showModal();
 }
 ['rulesHome', 'rulesLobby', 'rulesGame'].forEach(id => $('#' + id).onclick = openRules);
 $('#achHome').onclick = openAch;
@@ -154,6 +169,8 @@ function speak(text) {
   const u = new SpeechSynthesisUtterance(text); u.lang = VOICE[lang]; u.rate = .95;
   speechSynthesis.speak(u);
 }
+const vib = p => { if (hapOn) navigator.vibrate?.(p); };
+$('#hap').onclick = () => { hapOn = !hapOn; localStorage.hap = hapOn ? '1' : '0'; applyI18n(); vib([60]); };
 $('#mute').onclick = () => { muted = !muted; localStorage.muted = muted ? '1' : '0'; applyI18n(); };
 $('#narr').onclick = () => { narrOn = !narrOn; localStorage.narr = narrOn ? '1' : '0'; if (!narrOn) speechSynthesis?.cancel(); applyI18n(); };
 
@@ -168,7 +185,7 @@ function nextReveal() {
   if (!r) { revealing = false; return el.classList.add('hidden'); }
   revealing = true;
   const title = r.kind === 'lynched' ? t('rvLynched', r.name) : /killed|shot|poisoned/.test(r.kind) ? t('rvKilled', r.name) : t('rvOut', r.name);
-  el.querySelector('.front').innerHTML = `<b>💀</b>${esc(title)}`;
+  el.querySelector('.front').innerHTML = `<b>💀</b>${esc(title)}`; el.querySelector('.front').className = 'face front' + (cosSel().back ? ' cb-' + cosSel().back : '');
   el.querySelector('.back').innerHTML = r.role ? `<b>${ICON[r.role] || '❓'}</b><span class="tag">${t('rvRole')}</span>${esc(nm(r.role))}` : '<b>❓</b>';
   const c = el.querySelector('.rcard'); c.classList.remove('flipped'); el.classList.remove('hidden');
   setTimeout(() => c.classList.add('flipped'), 900); setTimeout(nextReveal, 3300);
@@ -181,8 +198,8 @@ $('#av').innerHTML = AVS.map(a => `<option value="${a}">${a || 'Aa'}</option>`).
 const urlRoom = new URLSearchParams(location.search).get('room'); if (urlRoom) $('#code').value = urlRoom.toUpperCase();
 $('#name').value = localStorage.name || '';
 function showStats() { const s = JSON.parse(localStorage.stats || '{"g":0,"w":0,"mw":0}'); $('#stats').textContent = s.g ? t('stats', s.w, s.g, s.mw) : ''; }
-const creds = () => { localStorage.name = $('#name').value; localStorage.av = $('#av').value; return { name: $('#name').value, av: $('#av').value, pw: $('#pw').value, pid }; };
-socket.on('connect', () => { if (localStorage.room) socket.emit('join', { code: localStorage.room, name: localStorage.name, av: localStorage.av, pid }); });
+const creds = () => { localStorage.name = $('#name').value; localStorage.av = $('#av').value; return { name: $('#name').value, av: $('#av').value, pw: $('#pw').value, pid, cos: JSON.parse(localStorage.cos || '{}') }; };
+socket.on('connect', () => { if (localStorage.room) socket.emit('join', { code: localStorage.room, name: localStorage.name, av: localStorage.av, pid, cos: JSON.parse(localStorage.cos || '{}') }); });
 socket.on('err', m => { $('#err').textContent = m; $('#err2').textContent = m; toast(m); if (m.includes('not found')) localStorage.removeItem('room'); });
 socket.on('joined', ({ code }) => { localStorage.room = code; history.replaceState(null, '', '?room=' + code); });
 socket.on('kicked', () => { localStorage.removeItem('room'); alert('The host removed you from the room.'); location.href = '/'; });
@@ -193,6 +210,7 @@ socket.on('typing', n => { $('#typing').textContent = n + ' …'; clearTimeout(t
 $('#create').onclick = () => socket.emit('create', creds());
 $('#join').onclick = () => socket.emit('join', { code: $('#code').value, ...creds() });
 $('#tutorial').onclick = () => socket.emit('tutorial', creds());
+$('#tutorialMap').onclick = () => socket.emit('tutorial', { ...creds(), metro: true });
 ['leaveLobby', 'leaveGame'].forEach(id => $('#' + id).onclick = () => { if (confirm(t('leaveQ'))) socket.emit('leave'); });
 $('#start').onclick = () => socket.emit('start');
 $('#addbot').onclick = () => socket.emit('addbot');
@@ -217,21 +235,22 @@ function won() {
 function sounds() {
   const fresh = prev.log >= 0 && S.log.length > prev.log ? S.log.slice(prev.log).map(l => l.text) : [];
   const deaths = fresh.filter(x => /was (killed|lynched|shot|poisoned|overcome|removed)|killed protecting|heartbreak/.test(x));
-  if (deaths.length) { SFX.death(); queueReveals(deaths); }
+  if (deaths.length) { SFX.death(); vib([500]); queueReveals(deaths); }
   if (prev.phase !== S.phase) {
     prevCounts = {};
-    if (S.phase === 'night') { SFX.night(); navigator.vibrate?.(200); speak(t('nNight')); }
-    else if (S.phase === 'day') { SFX.day(); navigator.vibrate?.([100, 60, 100]); speak(t('nDay') + ' ' + deaths.map(x => t('nDied', x.split(' was ')[0])).join(' ')); }
+    if (S.phase === 'night') trans('to-night'); else if (S.phase === 'day' && prev.phase === 'night') trans('to-day');
+    if (S.phase === 'night') { SFX.night(); speak(t('nNight')); }
+    else if (S.phase === 'day') { SFX.day(); speak(t('nDay') + ' ' + deaths.map(x => t('nDied', x.split(' was ')[0])).join(' ')); }
     else if (S.phase === 'lastwords') SFX.last();
     else if (S.phase === 'over') {
-      SFX.win(); speak(t('nOver'));
+      SFX.win(); speak(t('nOver')); if (S.role && !S.spectator) vib(won() ? [80, 40, 80, 40, 80, 40, 350] : [350, 120, 350]);
       if (prev.phase && !S.spectator && S.role) {
         const st = JSON.parse(localStorage.stats || '{"g":0,"w":0,"mw":0}'); st.g++; if (won()) { st.w++; if (isM(S.role)) st.mw++; }
         localStorage.stats = JSON.stringify(st); showStats(); if (!S.tutorial) checkAchievements(st);
       }
     }
   }
-  if (S.phase === 'night' && S.turn && S.turn !== prev.turn) speak(t('nWake', nm(S.turn)));
+  if (S.phase === 'night' && S.turn && S.turn !== prev.turn) { speak(t('nWake', nm(S.turn))); if (S.alive && S.turn === (isM(S.role) ? 'mafia' : S.role)) vib([90, 50, 90]); }
 }
 
 function render() {
@@ -268,10 +287,12 @@ function renderTabs() {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
   ['chat', 'log', 'recap'].forEach(x => $('#' + x).classList.toggle('hidden', tab !== x)); $('#deadfeed').classList.toggle('hidden', tab !== 'dead');
 }
+const TIPM = ['', 'Map mode: every night each role acts in turn. Targets 1 district away cost +10 IP, and 2 away need a Long-Range Kit.', 'Your turn! Investigate someone. The same district is free, next door costs 10 IP.', 'Day: click a district on the map, then press Move here. You can move once a day, and adjacent districts are free.', 'Nice move! Now open the 🛒 Market and buy Kevlar Body Armor. It saves you from one night attack.', 'Armor ready! Each night districts pay IP to the faction with the most players inside. Chat, then vote.', 'Map tutorial complete! Create a room and tick Metropolitan mode to play with friends.'];
+function tutM() { if (!S.tutorial || !S.metro) return 0; if (S.phase === 'over') return 6; if (S.phase === 'night') return S.turn === S.role ? 2 : 1; return S.kevlar ? 5 : S.moved ? 4 : 3; }
 function renderTip() {
   const el = $('#tip'); if (!S.tutorial) return el.classList.add('hidden');
   const mine = S.turn === S.role;
-  el.textContent = S.phase === 'over' ? t('tip4') : S.phase === 'night' ? (mine ? t('tip2') : t('tip1')) : t('tip3');
+  el.textContent = S.metro ? TIPM[tutM()] : S.phase === 'over' ? t('tip4') : S.phase === 'night' ? (mine ? t('tip2') : t('tip1')) : t('tip3');
   el.classList.remove('hidden');
 }
 
@@ -354,7 +375,7 @@ function choose(title, opts, cb) {
 }
 const ITEMS = [
   ['Judicial and voting', [['proxy', 'Buy an extra vote', 25, 'player'], ['indict', 'Call Special Indictment (vote now)', 40], ['donate', 'Donate 25 to your faction fund', 25], ['veto', 'Executive Veto (spends 100 from the fund)', 0]]],
-  ['Logistics', [['longrange', 'Long-Range Kit (reach targets 2 districts away)', 35, null, 1]]],
+  ['Logistics', [['longrange', 'Long-Range Kit (reach targets 2 districts away)', 35, null, 1], ['hire', 'Hire a bodyguard for one night (player)', 45, 'player']]],
   ['Intel', [['wiretap', 'Untraceable Wiretap (player or district)', 50, 'both', 1], ['scraps', 'Intercept Scraps', 35]]],
   ['Black Market', [['kevlar', 'Kevlar Body Armor', 60, null, 1], ['jammer', 'Signal Jammer (district)', 40, 'district', 1], ['dossier', 'Fabricated Dossier (frame a player)', 40, 'player', 1]]],
 ];
@@ -369,24 +390,50 @@ function openShop() {
   });
   $('#rules').showModal();
 }
+const NODE = { financial: [80, 70], industrial: [340, 70], hub: [210, 150], docks: [80, 230], heights: [340, 230] };
+const EDGES = [['hub', 'financial'], ['hub', 'industrial'], ['hub', 'docks'], ['hub', 'heights'], ['financial', 'industrial'], ['industrial', 'heights'], ['heights', 'docks'], ['docks', 'financial']];
+let selDist = null;
+function buildMap() {
+  $('#map').innerHTML = `<svg viewBox="0 0 420 300" role="img" aria-label="City map">${EDGES.map(([a, b]) => `<line class="edge" x1="${NODE[a][0]}" y1="${NODE[a][1]}" x2="${NODE[b][0]}" y2="${NODE[b][1]}"/>`).join('')}${Object.keys(NODE).map(d => `<g class="node" data-d="${d}"><rect x="${NODE[d][0] - 62}" y="${NODE[d][1] - 34}" width="124" height="68" rx="14"/><text class="nl" x="${NODE[d][0]}" y="${NODE[d][1] - 15}" text-anchor="middle">${DN[d]}</text><text class="ny" x="${NODE[d][0]}" y="${NODE[d][1] - 3}" text-anchor="middle">+${DY[d]}/night</text><text class="ld" x="${NODE[d][0]}" y="${NODE[d][1] + 29}" text-anchor="middle"></text></g>`).join('')}<g id="toks"></g></svg>`;
+  $('#map').querySelectorAll('.node').forEach(n => n.onclick = () => { selDist = n.dataset.d; renderMetro(); });
+}
 function renderMetro() {
   const el = $('#metro');
   if (!S.metro || S.spectator) return el.classList.add('hidden');
   el.classList.remove('hidden');
-  const day = S.phase === 'day' && S.alive;
+  if (!$('#map svg')) buildMap();
+  if (!selDist) selDist = S.pos;
+  const day = S.phase === 'day' && S.alive, step = tutM();
   $('#mapbar').innerHTML = `<b>💰 ${S.ip ?? 0} IP</b><span class="tag">📍 ${DN[S.pos] || '?'}${S.frozen ? ' · ❄️ frozen' : ''}${S.kevlar ? ' · 🦺 armor' : ''}${S.longRange ? ' · 🎯 kit' : ''}${S.smug ? ' · 📦 contraband' : ''} · fund ${S.fund}${S.veto ? ' (veto armed)' : ''}</span><button id="shopBtn" ${day ? '' : 'disabled'}>🛒 Market</button>`;
-  $('#shopBtn').onclick = openShop;
-  $('#map').innerHTML = Object.keys(DN).map(d => {
-    const here = S.players.filter(p => p.pos === d && p.alive && !p.spectator);
-    const mv = day && d !== S.pos && !S.moved ? `<button data-move="${d}">${ddist(S.pos, d) === 2 ? 'Express ($15)' : 'Move here'}</button>` : '';
-    const fc = day && S.pos === d && !S.facUsed && !S.sab[d] ? `<button data-fac="${d}" title="${FHINT[d]}">${FACI[d][0]}</button>` : '';
-    return `<div class="tile t-${d} ${S.pos === d ? 'me' : ''} ${S.sab[d] ? 'sab' : ''}"><div class="tn">${DN[d]} <span class="tag">+${DY[d]}/night</span>${S.leads[d] ? ' <span class="lead">★ you lead</span>' : ''}${S.sab[d] ? ' <span class="tag">⚠ sabotaged</span>' : ''}</div><div class="tp">${here.map(p => `<span class="chip">${avatar(p)}${esc(p.name)}</span>`).join('') || '<span class="tag">empty</span>'}</div><div class="acts">${mv}${fc}</div></div>`;
-  }).join('');
+  $('#shopBtn').onclick = openShop; $('#shopBtn').classList.toggle('pulse', step === 4);
+  document.querySelectorAll('#map .node').forEach(n => {
+    const d = n.dataset.d;
+    n.classList.toggle('me', S.pos === d); n.classList.toggle('sel', selDist === d); n.classList.toggle('sab', !!S.sab[d]);
+    n.classList.toggle('pulse', step === 3 && ddist(S.pos, d) === 1 && !S.moved);
+    n.querySelector('.ld').textContent = (S.leads[d] ? '★ you lead' : '') + (S.sab[d] ? ' ⚠ sabotaged' : '');
+  });
+  const groups = {}, keep = new Set(), toks = $('#toks');
+  S.players.filter(p => p.pos && p.alive && !p.spectator).forEach(p => (groups[p.pos] = groups[p.pos] || []).push(p));
+  Object.entries(groups).forEach(([d, arr]) => arr.sort((a, b) => (a.id < b.id ? -1 : 1)).forEach((p, i) => {   // avatars walk along the lines between districts
+    keep.add('tok-' + p.id);
+    const cols = Math.min(arr.length, 4), x = NODE[d][0] + ((i % 4) - (cols - 1) / 2) * 24, y = NODE[d][1] + 19 + Math.floor(i / 4) * 22;
+    let tk = document.getElementById('tok-' + p.id);
+    if (!tk) { tk = document.createElementNS('http://www.w3.org/2000/svg', 'g'); tk.id = 'tok-' + p.id; tk.innerHTML = '<title></title><circle r="11"></circle><text y="4" text-anchor="middle"></text>'; tk.style.transition = 'none'; toks.appendChild(tk); tk.style.transform = `translate(${x}px,${y}px)`; void tk.getBoundingClientRect(); tk.style.transition = ''; }
+    tk.style.transform = `translate(${x}px,${y}px)`;
+    tk.setAttribute('class', 'tok' + (p.id === S.me ? ' mine' : '') + (p.cos && p.cos.frame ? ' frame-' + p.cos.frame : ''));
+    let hue = 0; for (const c of p.name) hue = (hue * 31 + c.charCodeAt(0)) % 360;
+    tk.querySelector('circle').style.fill = `hsl(${hue} 45% 42%)`; tk.querySelector('text').textContent = p.av || p.name[0].toUpperCase(); tk.querySelector('title').textContent = p.name;
+  }));
+  [...toks.children].forEach(c => { if (!keep.has(c.id)) c.remove(); });
+  const d = selDist, here = S.players.filter(p => p.pos === d && p.alive && !p.spectator);
+  const mv = day && d !== S.pos && !S.moved ? `<button data-move="${d}">${ddist(S.pos, d) === 2 ? 'Express ($15)' : 'Move here'}</button>` : '';
+  const fc = day && S.pos === d && !S.facUsed && !S.sab[d] ? `<button data-fac="${d}" title="${FHINT[d]}">${FACI[d][0]}</button>` : '';
+  $('#mapinfo').innerHTML = `<b>${DN[d]}</b> <span class="tag">+${DY[d]}/night · ${here.length} here · ${FHINT[d]}</span><div class="tp">${here.map(p => `<span class="chip">${avatar(p)}${esc(p.name)}</span>`).join('') || '<span class="tag">empty</span>'}</div><div class="acts">${mv}${fc}</div>`;
   document.querySelectorAll('[data-move]').forEach(b => b.onclick = () => socket.emit('act', { type: 'move', target: b.dataset.move }));
   document.querySelectorAll('[data-fac]').forEach(b => b.onclick = () => {
     const k = FACI[b.dataset.fac][1];
     if (!k) return socket.emit('act', { type: 'facility' });
-    choose(FACI[b.dataset.fac][0], k === 'player' ? livingOpts(false) : Object.entries(DN).filter(([d]) => d !== 'industrial'), v => socket.emit('act', { type: 'facility', target: v }));
+    choose(FACI[b.dataset.fac][0], k === 'player' ? livingOpts(false) : Object.entries(DN).filter(([x]) => x !== 'industrial'), v => socket.emit('act', { type: 'facility', target: v }));
   });
 }
 function renderBanner() {
@@ -446,7 +493,7 @@ function renderPlayers() {
 }
 function renderFeeds() {
   const night = S.phase === 'night', mafiaChat = night && isM(S.role), spy = night && S.role === 'spy' && S.alive;
-  const line = m => m.sys ? `<div class="entry sys">${esc(m.text)}</div>` : `<div class="msg"><b>${esc(m.name)}</b> ${esc(m.text)}</div>`;
+  const line = m => m.sys ? `<div class="entry sys">${esc(m.text)}</div>` : `<div class="msg"><b${m.c ? ` class="cc-${m.c}"` : ''}>${esc(m.name)}</b> ${esc(m.text)}</div>`;
   const msgs = (mafiaChat || spy) ? S.mchat : S.chat.filter(m => !mutedNames.has(m.name));
   const feed = $('#chat'), atBottom = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 30;
   feed.innerHTML = (mafiaChat ? `<div class="entry">${t('mafiaInfo')}</div>` : '') + (spy ? `<div class="entry">${t('spyInfo')}</div>` : '') + (night && !mafiaChat && !spy ? `<div class="entry">${t('nightClosed')}</div>` : '') +
@@ -471,3 +518,10 @@ setInterval(() => {
   $('#timerbar i').style.width = S.dur ? Math.max(0, Math.min(100, (S.endsAt - Date.now()) / S.dur * 100)) + '%' : '0';
 }, 500);
 applyI18n(); showStats();
+
+// ---------- sunset / dawn transition, falling lights, fog ----------
+function trans(kind) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const el = $('#trans'); el.className = ''; void el.offsetWidth; el.className = kind; setTimeout(() => { el.className = ''; }, 3000);
+}
+$('#fx').innerHTML = Array.from({ length: 16 }, () => `<i class="mote" style="left:${Math.random() * 100}%;animation-duration:${9 + Math.random() * 12}s;animation-delay:${-Math.random() * 20}s"></i>`).join('');
