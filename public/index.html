@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="day">
+<div id="conn" class="hidden" role="status">Connection lost. Reconnecting…</div>
+<div id="confetti"></div>
 <div id="fog"></div><div id="fx"></div><div id="trans"><i class="sun"></i></div>
 <main id="home" class="screen">
   <div class="row" style="justify-content:space-between"><div class="logo">🎭</div><select class="langsel" aria-label="Language"></select></div>
@@ -41,16 +43,17 @@
 <main id="game" class="hidden">
   <header>
     <div class="title"><span id="phaseicon"></span><strong id="phase"></strong><span id="timer"></span></div>
-    <div class="row"><div id="hostbtns" class="row"></div><select class="langsel" aria-label="Language"></select><a id="voice" class="btn hidden" target="_blank" rel="noopener" data-i18n="voiceBtn"></a><button id="rulesGame" data-i18n="rules"></button><button id="mute"></button><button id="narr"></button><button id="hap"></button><button id="leaveGame" class="danger" data-i18n="leave"></button></div>
+    <div class="row"><div id="hostbtns" class="row"></div><select class="langsel" aria-label="Language"></select><a id="voice" class="btn hidden" target="_blank" rel="noopener" data-i18n="voiceBtn"></a><button id="rulesGame" data-i18n="rules"></button><button id="mute"></button><button id="narr"></button><button id="hap"></button><button id="mus"></button><button id="leaveGame" class="danger" data-i18n="leave"></button></div>
   </header>
   <div id="timerbar"><i></i></div>
   <div id="layout">
     <div id="left">
       <div id="scene"></div>
       <div id="rolecard"><div id="role" class="role"></div></div>
-      <div id="banner"></div>
+      <div id="banner" aria-live="polite"></div>
       <div id="tip" class="hidden"></div>
       <section id="metro" class="hidden"><div id="mapbar"></div><div id="map"></div><div id="mapinfo"></div></section>
+      <section id="poll" class="ballot hidden"></section>
       <section id="ballot" class="ballot hidden"></section>
       <section id="players" class="grid"></section>
     </div>
@@ -67,12 +70,14 @@
       <div id="deadfeed" class="feed hidden"></div>
       <div id="typing" class="tag"></div>
       <div id="emojis" class="emojis"></div>
+      <div id="emotes" class="hidden"></div>
       <form id="chatform"><input id="msg" data-i18n-ph="msgPh" maxlength="300" autocomplete="off"><button class="primary" data-i18n="send"></button></form>
     </section>
   </div>
 </main>
 <dialog id="rules"><div id="rulesbody"></div><form method="dialog"><button class="primary">OK</button></form></dialog>
-<div id="reveal" class="hidden"><div class="rcard"><div class="face front"></div><div class="face back"></div></div></div>
+<div id="reveal" class="hidden"><div class="dfx" id="dfx"></div><div class="rcard"><div class="face front"></div><div class="face back"></div></div></div>
+<div id="deal" class="hidden"><div class="rcard"><div class="face front"></div><div class="face back"></div></div></div>
 <div id="toast"></div>
 <div id="flash"></div>
 <script src="/socket.io/socket.io.js"></script>

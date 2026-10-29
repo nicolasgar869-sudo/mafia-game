@@ -173,3 +173,36 @@ select[data-persona]{padding:2px 6px;font-size:.8rem}
 @keyframes tfade{0%{opacity:0}20%{opacity:.85}75%{opacity:.85}100%{opacity:0}}
 @keyframes sink{from{top:25%}to{top:105%}}@keyframes rise{from{top:105%}to{top:20%}}
 @media (prefers-reduced-motion:reduce){.mote,#fog::before,#fog::after,.edge,.node.pulse rect,#shopBtn.pulse{animation:none}}
+/* ---- v7: portraits, death fx, dealing, polls, emotes, quality ---- */
+svg.pt{border-radius:50%;vertical-align:middle;flex:none;overflow:hidden}
+.role svg.pt{box-shadow:0 0 0 2px var(--line)}
+.face svg.pt{box-shadow:0 0 0 3px var(--accent);margin-bottom:4px}
+#conn{position:fixed;top:0;left:0;right:0;z-index:30;background:var(--blood);color:#fff;text-align:center;padding:6px;font-weight:700}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:25;overflow:hidden}
+#confetti i{position:absolute;top:-14px;width:9px;height:14px;animation:cfall linear forwards}
+@keyframes cfall{to{transform:translateY(112vh) rotate(720deg)}}
+body.shake #game,body.shake .screen{animation:shk .6s}
+@keyframes shk{0%,100%{transform:none}15%{transform:translate(-9px,4px)}30%{transform:translate(8px,-5px)}45%{transform:translate(-6px,-3px)}60%{transform:translate(6px,4px)}80%{transform:translate(-3px,2px)}}
+.dfx{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:1}
+.dfx::before{content:attr(data-e);font-size:7rem;opacity:0}
+.dfx.killed::before{animation:fxpop 1.4s .05s}.dfx.shot::before{animation:fxpop 1s .05s}.dfx.heart::before{animation:fxpop 1.6s .05s}.dfx.guard::before{animation:fxpop 1.4s .05s}
+.dfx.poisoned::before,.dfx.left::before{animation:fxfloat 2.2s .05s}.dfx.lynched::before,.dfx.executed::before{animation:fxdrop 1.2s .05s}
+.dfx.killed{background:radial-gradient(circle,transparent 30%,rgba(190,0,20,.55))}.dfx.poisoned{background:radial-gradient(circle,transparent 30%,rgba(40,190,60,.4))}.dfx.shot{background:radial-gradient(circle,rgba(255,255,255,.5),transparent 40%)}
+@keyframes fxpop{0%{opacity:0;transform:scale(.2) rotate(-20deg)}25%{opacity:1;transform:scale(1.5) rotate(8deg)}60%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.2)}}
+@keyframes fxfloat{0%{opacity:0;transform:translateY(120px)}30%{opacity:1}100%{opacity:0;transform:translateY(-260px) scale(1.4)}}
+@keyframes fxdrop{0%{opacity:0;transform:translateY(-70vh)}40%{opacity:1;transform:translateY(0)}55%{transform:translateY(-30px)}70%{transform:translateY(0)}100%{opacity:0;transform:translateY(0)}}
+#deal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:#000d;perspective:900px}
+.rcard.dealing{animation:dealin 1s cubic-bezier(.2,.9,.3,1.05)}
+@keyframes dealin{0%{transform:translate(55vw,-60vh) rotate(50deg) scale(.35);opacity:0}70%{opacity:1}100%{transform:none}}
+.face strong{font-size:1.5rem;font-family:Fraunces,serif}
+#poll .popt{position:relative;display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;overflow:hidden;margin-top:6px}
+#poll .pbar{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:.28;transition:width .5s}
+#poll .popt.mine{border-color:var(--accent)}#poll .plabel,#poll b{position:relative}
+.panel{position:relative}
+#emotes{position:absolute;left:8px;right:8px;bottom:104px;max-height:58%;overflow:auto;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:10px;z-index:5;box-shadow:0 10px 30px #0008}
+.wheel{position:relative;width:220px;height:210px;margin:0 auto 8px}
+.wheel button{position:absolute;left:50%;top:50%;width:42px;height:42px;margin:-21px;padding:0;font-size:1.35rem;border-radius:50%;transform:rotate(var(--a)) translateY(-82px) rotate(calc(-1 * var(--a)))}
+.hubl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--dim);font-size:.8rem}
+.stk{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.stk button{font-size:1.4rem;padding:4px}
+.msg.big{font-size:2rem;line-height:1.2}.msg.big b{font-size:.8rem;display:block}
+@media (prefers-contrast:more){:root{--line:rgba(255,255,255,.35)}body.night{--line:rgba(190,205,255,.5)}.tag,.sub{color:var(--ink)}}

@@ -7,8 +7,8 @@ let mutedNames = new Set(JSON.parse(localStorage.mutedNames || '[]'));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const show = id => ['home', 'lobby', 'game'].forEach(x => $('#' + x).classList.toggle('hidden', x !== id));
 const MAFIA = ['mafia', 'godfather', 'silencer'], isM = r => MAFIA.includes(r);
-const ICON = { mafia: '🔪', godfather: '🎩', silencer: '🤐', detective: '🔍', doctor: '⚕️', bodyguard: '🛡️', vigilante: '🔫', mayor: '🏛️', jester: '🃏', witch: '🧪', escort: '💃', spy: '🕶️', serialkiller: '🪓', town: '🏠' };
-const BASIC = ['detective', 'doctor', 'vigilante', 'bodyguard', 'mayor', 'jester', 'godfather'], UNIQUE = ['witch', 'escort', 'spy', 'serialkiller', 'silencer'];
+const ICON = { jailer: '⛓️', mafia: '🔪', godfather: '🎩', silencer: '🤐', detective: '🔍', doctor: '⚕️', bodyguard: '🛡️', vigilante: '🔫', mayor: '🏛️', jester: '🃏', witch: '🧪', escort: '💃', spy: '🕶️', serialkiller: '🪓', town: '🏠' };
+const BASIC = ['detective', 'doctor', 'vigilante', 'bodyguard', 'mayor', 'jester', 'godfather'], UNIQUE = ['witch', 'escort', 'spy', 'serialkiller', 'silencer', 'jailer'];
 
 // ---------- languages: [English, Bahasa Melayu, 中文]. Host settings and server log lines stay in English. ----------
 const LANGS = { en: 'English', ms: 'Bahasa Melayu', zh: '中文' }, LI = { en: 0, ms: 1, zh: 2 }, VOICE = { en: 'en-US', ms: 'ms-MY', zh: 'zh-CN' };
@@ -50,7 +50,7 @@ const D = {
   rematch: ['Play again (new roles)', 'Main lagi (peranan baharu)', '再来一局（新角色）'], backLobby: ['Back to lobby', 'Kembali ke lobi', '返回大厅'],
   whisper: ['Whisper', 'Bisik', '私语'], whisperQ: ['Whisper (only they will see it):', 'Bisikan (hanya mereka nampak):', '私语（只有对方能看到）：'], yourvote: ['YOUR VOTE', 'UNDI ANDA', '你的投票'],
   silencedTag: ['🤐 silenced', '🤐 disenyapkan', '🤐 被禁言'], mutedTag: ['🚫 muted', '🚫 dibisukan', '🚫 被禁言'],
-  a_kill: ['Kill', 'Bunuh', '击杀'], a_heal: ['Heal', 'Sembuh', '治疗'], a_guard: ['Guard', 'Kawal', '保护'], a_block: ['Block', 'Sekat', '阻挠'], a_inspect: ['Investigate', 'Siasat', '调查'],
+  a_jail: ['Jail', 'Penjara', '监禁'], a_kill: ['Kill', 'Bunuh', '击杀'], a_heal: ['Heal', 'Sembuh', '治疗'], a_guard: ['Guard', 'Kawal', '保护'], a_block: ['Block', 'Sekat', '阻挠'], a_inspect: ['Investigate', 'Siasat', '调查'],
   a_shoot: ['Shoot', 'Tembak', '开枪'], a_save: ['Save', 'Selamatkan', '拯救'], a_poison: ['Poison', 'Racun', '下毒'], a_silence: ['Silence', 'Senyapkan', '禁言'],
   tYou: ['you', 'anda', '你'], tHost: ['host', 'hos', '房主'], tBot: ['bot', 'bot', '机器人'], tOff: ['offline', 'luar talian', '离线'], kick: ['Kick', 'Tendang', '踢出'],
   waitN: ['Waiting for players ({0}/{1} minimum). Add bots to fill seats.', 'Menunggu pemain ({0}/{1} minimum). Tambah bot untuk mengisi kerusi.', '等待玩家（{0}/{1} 最少）。可添加机器人补位。'],
@@ -80,6 +80,7 @@ const D = {
   a_love: ['Till Death: you and your lover both survive', 'Hingga Akhir: anda dan kekasih sama-sama hidup', '生死相依：你和恋人都活到最后'], a_unlock: ['Achievement unlocked', 'Pencapaian dibuka', '解锁成就'],
 };
 const R = {   // role names, then descriptions
+  jailer: [['Jailer', 'Sipir', '狱卒'], ['Jail one player each night. You can talk privately, and you may execute them (2 times per game).', 'Penjarakan seorang pemain setiap malam. Anda boleh bercakap secara peribadi dan menghukum mati mereka (2 kali).', '每晚监禁一名玩家，可私下交谈，也可处决他（全局 2 次）。']],
   mafia: [['Mafia', 'Mafia', '黑手党'], ['Choose a victim with your team. All Mafia must agree.', 'Pilih mangsa bersama pasukan. Semua Mafia mesti bersetuju.', '和队友选择目标，所有黑手党必须一致。']],
   godfather: [['Godfather', 'Godfather', '教父'], ['Mafia leader. The Detective sees you as innocent.', 'Ketua Mafia. Detektif nampak anda tidak bersalah.', '黑手党首领，侦探会认为你是无辜的。']],
   silencer: [['Silencer', 'Penyenyap', '禁言者'], ['Mafia. Vote on the victim, and silence one player for tomorrow.', 'Mafia. Undi mangsa dan senyapkan seorang pemain esok.', '黑手党成员。投票选目标，并让一名玩家明天无法说话和投票。']],
@@ -105,6 +106,28 @@ function applyI18n() {
   $('#mute').textContent = muted ? t('soundOff') : t('sound'); $('#narr').textContent = narrOn ? t('narr') : t('narrOff'); $('#hap').textContent = hapOn ? 'Haptics on' : 'Haptics off';
 }
 
+
+// ---------- role portraits (inline SVG) ----------
+const fedora = (c, band) => `<ellipse cx="32" cy="15" rx="19" ry="4.5" fill="${c}"/><path d="M21 15q1-12 11-12t11 12z" fill="${c}"/><rect x="21" y="11.5" width="22" height="3" fill="${band}"/>`;
+const cap = c => `<path d="M19 20q13-14 26 0z" fill="${c}"/><rect x="19" y="19" width="26" height="3" fill="#0003"/>`;
+const PR = {
+  mafia: ['#23232f', '#f1c9a5', fedora('#1a1a1a', '#b3202a') + '<path d="M37 22l3 9" stroke="#a33" stroke-width="1.5"/>'],
+  godfather: ['#0e0e14', '#f1c9a5', fedora('#3a3a44', '#999') + '<circle cx="22" cy="50" r="3.2" fill="#d62839"/><path d="M22 53v7" stroke="#2a7" stroke-width="1.5"/>'],
+  silencer: ['#2a2a30', '#e8c4a0', cap('#333') + '<rect x="24" y="31" width="16" height="5" rx="1" fill="#c9c9c9"/>'],
+  detective: ['#8b6b3d', '#f1c9a5', fedora('#6b4f2a', '#2a1d0e') + '<circle cx="49" cy="45" r="6" fill="none" stroke="#e8e8e8" stroke-width="2.2"/><path d="M53.5 49.5l6 7" stroke="#e8e8e8" stroke-width="3"/>'],
+  doctor: ['#f0f4f7', '#f1c9a5', cap('#3aa17e') + '<circle cx="32" cy="12" r="4" fill="#cfd8dc" stroke="#90a4ae"/><rect x="29" y="48" width="6" height="12" fill="#d32f2f"/><rect x="26" y="51" width="12" height="6" fill="#d32f2f"/>'],
+  bodyguard: ['#14141a', '#d9a77f', '<path d="M19 22q0-12 13-12t13 12q-6-6-13-6t-13 6z" fill="#222"/><rect x="21" y="23" width="10" height="6" rx="2" fill="#000"/><rect x="33" y="23" width="10" height="6" rx="2" fill="#000"/><rect x="30" y="25" width="4" height="2" fill="#000"/><path d="M46 28q4 3 2 12" stroke="#bbb" stroke-width="1.5" fill="none"/>'],
+  vigilante: ['#3b3f47', '#f1c9a5', '<path d="M16 30q0-22 16-22t16 22l-4 6V24H20v12z" fill="#2a2d33"/><rect x="21" y="23" width="22" height="7" rx="3" fill="#111"/><circle cx="27" cy="26.5" r="1.8" fill="#fff"/><circle cx="37" cy="26.5" r="1.8" fill="#fff"/>'],
+  mayor: ['#1d3557', '#f1c9a5', '<rect x="23" y="3" width="18" height="12" fill="#222"/><ellipse cx="32" cy="15" rx="16" ry="3.5" fill="#222"/><rect x="23" y="11" width="18" height="2.5" fill="#c9a227"/><path d="M10 64L42 44" stroke="#c9a227" stroke-width="5"/><circle cx="27" cy="27" r="4.5" fill="none" stroke="#222"/><circle cx="37" cy="27" r="4.5" fill="none" stroke="#222"/>'],
+  jester: ['#7b2d8e', '#f1c9a5', '<path d="M17 19L9 4l15 8 8-10 8 10 15-8-8 15z" fill="#e63946"/><circle cx="9" cy="4" r="2.5" fill="#ffd166"/><circle cx="55" cy="4" r="2.5" fill="#ffd166"/><circle cx="32" cy="2" r="2.5" fill="#ffd166"/><path d="M6 64c2-15 13-21 26-21v21z" fill="#ffd166"/>'],
+  witch: ['#4b2a6b', '#9bd17a', '<path d="M15 19L33-2 49 19z" fill="#1d1d2b"/><rect x="12" y="17" width="40" height="4.5" rx="2" fill="#1d1d2b"/><rect x="21" y="14" width="22" height="3" fill="#8e44ad"/><circle cx="33" cy="32" r="1.3" fill="#3b6b2a"/>'],
+  escort: ['#c0392b', '#f1c9a5', '<path d="M17 30q-2-21 15-21t15 21v11h-5V27H22v14h-5z" fill="#3b2a20"/><path d="M28 33q4 3 8 0" stroke="#d6336c" stroke-width="2" fill="none"/>'],
+  spy: ['#2b2f38', '#e8c4a0', '<path d="M14 62l8-18 10 8 10-8 8 18z" fill="#1a1d24"/>' + cap('#222') + '<rect x="21" y="24" width="22" height="5" rx="2" fill="#0b0b0b"/>'],
+  serialkiller: ['#2a2018', '#f3f3f3', '<circle cx="27" cy="25" r="2.6" fill="#222"/><circle cx="37" cy="25" r="2.6" fill="#222"/><rect x="29" y="31" width="6" height="6" rx="1" fill="none" stroke="#999"/><path d="M26 19l2 5M38 19l-2 5" stroke="#c0392b" stroke-width="2"/><path d="M48 40l8 12" stroke="#ddd" stroke-width="3"/>'],
+  jailer: ['#334155', '#e0b894', cap('#1e293b') + '<path d="M29 12l3-4 3 4-3 3z" fill="#facc15"/><circle cx="49" cy="46" r="4.5" fill="none" stroke="#e5c07b" stroke-width="2"/><path d="M49 51v8M49 55h4" stroke="#e5c07b" stroke-width="2"/>'],
+  town: ['#4a90d9', '#f1c9a5', cap('#e07a2f')],
+};
+const portrait = (role, size = 24) => { const [body, skin, extra] = PR[role] || PR.town; return `<svg class="pt" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true"><rect width="64" height="64" fill="rgba(255,255,255,.07)"/><path d="M6 64c2-15 13-21 26-21s24 6 26 21z" fill="${body}"/><circle cx="32" cy="27" r="13" fill="${skin}"/><circle cx="27" cy="27" r="1.6" fill="#222"/><circle cx="37" cy="27" r="1.6" fill="#222"/><path d="M28 33q4 3 8 0" stroke="#7a3b2e" stroke-width="1.5" fill="none"/>${extra}</svg>`; };
 const avatar = p => {
   if (!p) return '';
   const fr = p.cos && p.cos.frame ? ' frame-' + p.cos.frame : '';
@@ -176,21 +199,27 @@ $('#narr').onclick = () => { narrOn = !narrOn; localStorage.narr = narrOn ? '1' 
 
 // ---------- dramatic reveal ----------
 const revealQ = []; let revealing = false;
+const KIND = x => /lynched/.test(x) ? 'lynched' : /shot by/.test(x) ? 'shot' : /poisoned/.test(x) ? 'poisoned' : /heartbreak|broken heart/.test(x) ? 'heart' : /executed/.test(x) ? 'executed' : /killed protecting/.test(x) ? 'guard' : /removed after/.test(x) ? 'left' : 'killed';
+const DEMO = { killed: '🩸', shot: '💥', poisoned: '🧪', lynched: '🔨', heart: '💔', executed: '⛓️', guard: '🛡️', left: '💨' };
 function queueReveals(lines) {
-  lines.forEach(x => { const m = x.match(/^(.+?) was (killed|lynched|shot|poisoned|overcome|removed)[^.]*\.(?: They were (\w+)\.)?/); if (m) revealQ.push({ name: m[1], kind: m[2], role: m[3] }); });
+  lines.forEach(x => { const m = x.match(/^(.+?) was (killed|lynched|shot|poisoned|overcome|removed|executed)[^.]*\.(?: They were (\w+)\.)?/); if (m) revealQ.push({ name: m[1], kind: KIND(x), role: m[3] }); });
   if (!revealing) nextReveal();
 }
 function nextReveal() {
   const r = revealQ.shift(), el = $('#reveal');
   if (!r) { revealing = false; return el.classList.add('hidden'); }
   revealing = true;
-  const title = r.kind === 'lynched' ? t('rvLynched', r.name) : /killed|shot|poisoned/.test(r.kind) ? t('rvKilled', r.name) : t('rvOut', r.name);
+  const title = r.kind === 'lynched' ? t('rvLynched', r.name) : ['left', 'heart'].includes(r.kind) ? t('rvOut', r.name) : t('rvKilled', r.name);
   el.querySelector('.front').innerHTML = `<b>💀</b>${esc(title)}`; el.querySelector('.front').className = 'face front' + (cosSel().back ? ' cb-' + cosSel().back : '');
-  el.querySelector('.back').innerHTML = r.role ? `<b>${ICON[r.role] || '❓'}</b><span class="tag">${t('rvRole')}</span>${esc(nm(r.role))}` : '<b>❓</b>';
+  el.querySelector('.back').innerHTML = r.role ? `${portrait(r.role, 120)}<span class="tag">${t('rvRole')}</span>${esc(nm(r.role))}` : '<b>❓</b>';
   const c = el.querySelector('.rcard'); c.classList.remove('flipped'); el.classList.remove('hidden');
-  setTimeout(() => c.classList.add('flipped'), 900); setTimeout(nextReveal, 3300);
+  const fx = $('#dfx'); fx.className = 'dfx'; void fx.offsetWidth; fx.className = 'dfx ' + r.kind; fx.dataset.e = DEMO[r.kind];   // a different animation per cause of death
+  if (['killed', 'shot', 'lynched', 'executed'].includes(r.kind)) shake();
+  setTimeout(() => c.classList.add('flipped'), 1100); setTimeout(nextReveal, 3600);
 }
 $('#reveal').onclick = () => { revealQ.length = 0; nextReveal(); };
+function shake() { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); setTimeout(() => document.body.classList.remove('shake'), 700); }
+function confetti() { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; const box = $('#confetti'); box.innerHTML = Array.from({ length: 90 }, () => `<i style="left:${Math.random() * 100}%;background:hsl(${Math.random() * 360} 85% 60%);animation-duration:${2.5 + Math.random() * 2.5}s;animation-delay:${Math.random() * 1.2}s;transform:rotate(${Math.random() * 360}deg)"></i>`).join(''); setTimeout(() => { box.innerHTML = ''; }, 7000); }
 
 // ---------- connection ----------
 const AVS = ['', '😀', '😎', '🤠', '🥸', '👻', '🦊', '🐼', '🐸', '🦉', '🐙', '🕵️'];
@@ -220,7 +249,6 @@ $('#chatform').onsubmit = e => { e.preventDefault(); const v = $('#msg').value.t
 let lastType = 0;
 $('#msg').oninput = () => { if (Date.now() - lastType > 1500) { lastType = Date.now(); socket.emit('typing'); } };
 $('#emojis').innerHTML = ['😂', '😱', '🤔', '👀', '🔪', '👍'].map(e => `<button type="button">${e}</button>`).join('');
-$('#emojis').onclick = e => { if (e.target.tagName === 'BUTTON' && !e.target.disabled) socket.emit('chat', { text: e.target.textContent }); };
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => { tab = b.dataset.tab; renderTabs(); renderFeeds(); });
 
 // ---------- state ----------
@@ -234,16 +262,17 @@ function won() {
 }
 function sounds() {
   const fresh = prev.log >= 0 && S.log.length > prev.log ? S.log.slice(prev.log).map(l => l.text) : [];
-  const deaths = fresh.filter(x => /was (killed|lynched|shot|poisoned|overcome|removed)|killed protecting|heartbreak/.test(x));
+  const deaths = fresh.filter(x => /was (killed|lynched|shot|poisoned|overcome|removed|executed)|killed protecting|heartbreak/.test(x));
   if (deaths.length) { SFX.death(); vib([500]); queueReveals(deaths); }
   if (prev.phase !== S.phase) {
     prevCounts = {};
+    if (S.phase === 'night' && S.day === 1 && prev.phase && prev.phase !== 'night' && S.role && !S.spectator) deal();
     if (S.phase === 'night') trans('to-night'); else if (S.phase === 'day' && prev.phase === 'night') trans('to-day');
     if (S.phase === 'night') { SFX.night(); speak(t('nNight')); }
     else if (S.phase === 'day') { SFX.day(); speak(t('nDay') + ' ' + deaths.map(x => t('nDied', x.split(' was ')[0])).join(' ')); }
     else if (S.phase === 'lastwords') SFX.last();
     else if (S.phase === 'over') {
-      SFX.win(); speak(t('nOver')); if (S.role && !S.spectator) vib(won() ? [80, 40, 80, 40, 80, 40, 350] : [350, 120, 350]);
+      SFX.win(); speak(t('nOver')); if (S.role && !S.spectator && won()) confetti(); if (S.role && !S.spectator) vib(won() ? [80, 40, 80, 40, 80, 40, 350] : [350, 120, 350]);
       if (prev.phase && !S.spectator && S.role) {
         const st = JSON.parse(localStorage.stats || '{"g":0,"w":0,"mw":0}'); st.g++; if (won()) { st.w++; if (isM(S.role)) st.mw++; }
         localStorage.stats = JSON.stringify(st); showStats(); if (!S.tutorial) checkAchievements(st);
@@ -260,13 +289,13 @@ function render() {
   $('#phaseicon').textContent = { night: '🌙', day: '☀️', lastwords: '🕯️', over: '🏁' }[S.phase];
   $('#phase').textContent = (S.phase === 'over' || S.phase === 'lastwords') ? t(S.phase) : `${t(S.phase)} ${S.day}`;
   const r = $('#role');
-  r.textContent = S.spectator ? '👀 ' + t('spectating') : S.alive ? `${ICON[S.role]} ${t('youare', nm(S.role))}` : `💀 ${t('youdead', nm(S.role))}`;
+  r.innerHTML = S.spectator ? '👀 ' + esc(t('spectating')) : S.alive ? `${portrait(S.role, 26)} ${esc(t('youare', nm(S.role)))}` : `💀 ${esc(t('youdead', nm(S.role)))}`;
   r.className = 'role ' + (isM(S.role) ? 'mafia' : '');
   const v = $('#voice'); v.classList.toggle('hidden', !S.set.voice); v.href = S.set.voice || '#';
   const live = ['night', 'day', 'lastwords'].includes(S.phase);
   $('#hostbtns').innerHTML = S.isHost && live ? `<button id="pause">${S.paused ? '▶' : '⏸'}</button><button id="skipphase">⏭</button>` : '';
   $('#pause') && ($('#pause').onclick = () => socket.emit('pause')); $('#skipphase') && ($('#skipphase').onclick = () => socket.emit('skipphase'));
-  renderScene(); renderBanner(); renderTip(); renderMetro(); renderBallot(); renderPlayers(); renderFeeds();
+  renderScene(); renderBanner(); renderTip(); renderMetro(); renderPoll(); renderBallot(); renderPlayers(); renderFeeds(); syncMusic();
 }
 
 // night/day skyline: one house per player, windows go dark when a player dies
@@ -324,7 +353,7 @@ function renderSettings() {
   const chk = (n, l, v) => `<label><input type="checkbox" name="${n}" ${v ? 'checked' : ''}>${l}</label>`;
   el.innerHTML = `<h3>Game</h3>${num('night', 'Seconds per night turn', s.night)}${num('day', 'Day length (seconds)', s.day)}${num('mafia', 'Mafia count (0 = automatic)', s.mafia)}
     <label>Bot difficulty<select name="botLevel">${['easy', 'normal', 'hard'].map(l => `<option ${s.botLevel === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    <div class="chk">${chk('reveal', 'Reveal role on death', s.reveal)}${chk('lastWords', 'Last words', s.lastWords)}${chk('events', 'Random events', s.events)}${chk('anon', 'Anonymous voting', s.anon)}${chk('filter', 'Profanity filter', s.filter)}${chk('metro', 'Metropolitan mode (map + IP)', s.metro)}</div>
+    <div class="chk">${chk('reveal', 'Reveal role on death', s.reveal)}${chk('lastWords', 'Last words', s.lastWords)}${chk('events', 'Random events', s.events)}${chk('anon', 'Anonymous voting', s.anon)}${chk('filter', 'Profanity filter', s.filter)}${chk('metro', 'Metropolitan mode (map + IP)', s.metro)}</div><label><span>Smart bot replies (Claude API${S.aiAvail ? '' : ', needs a server key'})</span><input type="checkbox" name="aiBots" ${s.aiBots ? 'checked' : ''} ${S.aiAvail ? '' : 'disabled'}></label>
     <label>Voice chat link<input type="text" name="voice" placeholder="https://meet.google.com/..." value="${esc(s.voice)}"></label>
     <h3>Roles</h3><div class="chk">${BASIC.map(k => chk(k, nm(k), s.roles[k])).join('')}</div>
     <h3 class="unique">${t('rUnique')}</h3><div class="chk unique">${UNIQUE.map(k => chk(k, nm(k), s.roles[k])).join('')}${chk('lovers', 'Lovers', s.lovers)}</div>`;
@@ -334,7 +363,7 @@ $('#settings').onchange = () => {
   const g = n => $('#settings').querySelector(`[name=${n}]`), roles = {};
   [...BASIC, ...UNIQUE].forEach(k => roles[k] = g(k).checked);
   socket.emit('settings', { night: g('night').value, day: g('day').value, mafia: g('mafia').value, voice: g('voice').value, botLevel: g('botLevel').value, roles,
-    ...Object.fromEntries(['reveal', 'lastWords', 'events', 'anon', 'filter', 'lovers', 'metro'].map(k => [k, g(k).checked])) });
+    ...Object.fromEntries(['reveal', 'lastWords', 'events', 'anon', 'filter', 'lovers', 'metro', 'aiBots'].map(k => [k, g(k).checked])) });
 };
 
 // ---------- gameplay ----------
@@ -346,6 +375,7 @@ function actions() {
   const out = [], other = p => p.id !== S.me;
   if (isM(r)) out.push(A('kill', p => !isM(p.role)));
   if (r === 'silencer' && !f.silencer) out.push(A('silence', p => !isM(p.role)));
+  if (r === 'jailer' && !f.jailer && !S.jailee) out.push(A('jail', other));
   if (r === 'doctor' && !d.heal) out.push(A('heal', () => true));
   if (r === 'bodyguard' && !d.guard) out.push(A('guard', other));
   if (r === 'escort' && !d.block) out.push(A('block', other));
@@ -357,7 +387,7 @@ function actions() {
 }
 function canHold() {
   const f = S.done.fin, r = S.role;
-  return S.alive && S.phase === 'night' && S.turn === (isM(r) ? 'mafia' : r) && ((r === 'vigilante' && S.shots > 0 && !f.vigilante) || (r === 'witch' && !f.witch && (S.potions.save + S.potions.poison > 0)) || (r === 'serialkiller' && !f.serialkiller) || (r === 'silencer' && !f.silencer));
+  return S.alive && S.phase === 'night' && S.turn === (isM(r) ? 'mafia' : r) && ((r === 'vigilante' && S.shots > 0 && !f.vigilante) || (r === 'witch' && !f.witch && (S.potions.save + S.potions.poison > 0)) || (r === 'serialkiller' && !f.serialkiller) || (r === 'silencer' && !f.silencer) || (r === 'jailer' && !f.jailer && !S.jailee));
 }
 
 // ---------- metropolitan map + market (English only) ----------
@@ -452,10 +482,16 @@ function renderBanner() {
   if (S.phase === 'day' && S.event === 'blackout') x += t('blackout');
   if (S.lover && S.alive) x += t('lover', S.lover);
   const note = S.notes.at(-1); if (note && S.role === 'detective') x += '  ' + note;
+  if (S.jailed) x = '⛓️ You are in jail tonight. You cannot use your power. You can talk privately with the Jailer.';
+  if (S.jailee) x += ' Prisoner: ' + (S.players.find(p => p.id === S.jailee)?.name || '?') + '.';
   b.textContent = x;
+  if (S.jailee && S.exec > 0 && S.phase === 'night') b.innerHTML += ` <button id="exec" class="danger">Execute prisoner (${S.exec} left)</button>`;
+  if (S.alive && S.phase === 'day' && !S.paused && !S.spectator) b.innerHTML += ' <button id="pollBtn">📊 Poll</button>';
+  $('#exec') && ($('#exec').onclick = () => { if (confirm('Execute the prisoner at dawn?')) socket.emit('act', { type: 'execute' }); });
   if (canHold()) b.innerHTML += ` <button id="hold">${t('hold')}</button>`;
   if (S.alive && S.phase === 'day' && !S.paused) b.innerHTML += ` <button id="skipday">${t('skipday', S.skipN, living)}</button>`;
   if (S.isHost && S.phase === 'over') b.innerHTML += ` <button id="rematch" class="primary">${t('rematch')}</button> <button id="again">${t('backLobby')}</button>`;
+  $('#pollBtn') && ($('#pollBtn').onclick = () => choose('Start a poll', [['trust', 'Who do you trust the most?'], ['suspect', 'Who is the most suspicious?'], ['skip', 'Should we skip the day?']], k => socket.emit('poll', { kind: k })));
   $('#hold') && ($('#hold').onclick = () => socket.emit('act', { type: 'hold' }));
   $('#skipday') && ($('#skipday').onclick = () => socket.emit('act', { type: 'skipday' }));
   $('#rematch') && ($('#rematch').onclick = () => socket.emit('start'));
@@ -478,7 +514,7 @@ function renderPlayers() {
   const canWhisper = S.alive && S.phase === 'day' && S.silenced !== S.me && S.event !== 'blackout' && !S.spectator;
   $('#players').innerHTML = S.players.filter(p => !p.spectator).map(p => {
     const mine = acts.filter(a => p.alive && a.ok(p));
-    const tag = p.role ? `<span class="tag ${isM(p.role) ? 'mafia' : ''}">${ICON[p.role]} ${nm(p.role)}</span>` : '';
+    const tag = p.role ? `<span class="tag ${isM(p.role) ? 'mafia' : ''}">${portrait(p.role, 18)} ${nm(p.role)}</span>` : '';
     const flags = (S.silenced === p.id ? `<span class="tag">${t('silencedTag')}</span>` : '') + (p.muted ? `<span class="tag">${t('mutedTag')}</span>` : '');
     const btns = mine.map(a => `<button data-id="${p.id}" data-type="${a.type}">${a.type === 'vote' ? '🗳️ ' : ''}${a.label}</button>`).join('') + (canWhisper && p.alive && p.id !== S.me ? `<button data-w="${p.id}" class="ghost">${t('whisper')}</button>` : '');
     const mod = p.id !== S.me && !p.bot ? `<button class="mini" data-mute="${esc(p.name)}" title="Mute for me">${mutedNames.has(p.name) ? '🔈' : '🔇'}</button>` + (S.isHost ? `<button class="mini hm" data-hmute="${p.id}" title="Mute for everyone">🚫</button>` : `<button class="mini hm" data-report="${p.id}" title="Report">⚑</button>`) : '';
@@ -492,22 +528,22 @@ function renderPlayers() {
   if (acts.some(a => a.type === 'vote')) { $('#players').insertAdjacentHTML('beforeend', `<div class="pcard"><span class="n">${t('skip')}</span><button id="skip">${t('abstain')}</button></div>`); $('#skip').onclick = () => socket.emit('act', { type: 'vote', target: null }); }
 }
 function renderFeeds() {
-  const night = S.phase === 'night', mafiaChat = night && isM(S.role), spy = night && S.role === 'spy' && S.alive;
-  const line = m => m.sys ? `<div class="entry sys">${esc(m.text)}</div>` : `<div class="msg"><b${m.c ? ` class="cc-${m.c}"` : ''}>${esc(m.name)}</b> ${esc(m.text)}</div>`;
-  const msgs = (mafiaChat || spy) ? S.mchat : S.chat.filter(m => !mutedNames.has(m.name));
+  const night = S.phase === 'night', jail = night && (S.jailed || !!S.jailee), mafiaChat = night && isM(S.role) && !jail, spy = night && S.role === 'spy' && S.alive;
+  const line = m => m.sys ? `<div class="entry sys">${esc(m.text)}</div>` : `<div class="msg${/^[\p{Extended_Pictographic}\uFE0F\u200D\s]{1,16}$/u.test(m.text) ? ' big' : ''}"><b${m.c ? ` class="cc-${m.c}"` : ''}>${esc(m.name)}</b> ${esc(m.text)}</div>`;
+  const msgs = jail ? S.jchat : (mafiaChat || spy) ? S.mchat : S.chat.filter(m => !mutedNames.has(m.name));
   const feed = $('#chat'), atBottom = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 30;
-  feed.innerHTML = (mafiaChat ? `<div class="entry">${t('mafiaInfo')}</div>` : '') + (spy ? `<div class="entry">${t('spyInfo')}</div>` : '') + (night && !mafiaChat && !spy ? `<div class="entry">${t('nightClosed')}</div>` : '') +
+  feed.innerHTML = (mafiaChat ? `<div class="entry">${t('mafiaInfo')}</div>` : '') + (spy ? `<div class="entry">${t('spyInfo')}</div>` : '') + (jail ? '<div class="entry">⛓️ Private jail chat. Only the Jailer and the prisoner see this.</div>' : '') + (night && !mafiaChat && !spy && !jail ? `<div class="entry">${t('nightClosed')}</div>` : '') +
     msgs.map(line).join('') + (night ? '' : S.whispers.map(w => `<div class="msg whisper"><b>${esc(w.from === S.players.find(p => p.id === S.me)?.name ? 'You → ' + w.to : w.from + ' → you')}</b> ${esc(w.text)}</div>`).join(''));
   if (atBottom) feed.scrollTop = feed.scrollHeight;
   $('#deadfeed').innerHTML = `<div class="entry">${t('deadInfo')}</div>` + S.dchat.map(line).join('');
   const inGame = ['night', 'day', 'lastwords'].includes(S.phase), dead = !S.alive;
-  const canPublic = S.phase === 'over' || (S.phase === 'day' && S.alive && S.silenced !== S.me && S.event !== 'blackout') || (S.phase === 'lastwords' && S.lw === S.me) || (mafiaChat && S.alive);
+  const canPublic = S.phase === 'over' || (S.phase === 'day' && S.alive && S.silenced !== S.me && S.event !== 'blackout') || (S.phase === 'lastwords' && S.lw === S.me) || ((mafiaChat || jail) && S.alive);
   const formOn = tab === 'dead' ? (dead && inGame) || S.phase === 'over' : tab === 'chat' ? !(dead && inGame) : false;
   $('#chatform').classList.toggle('hidden', !formOn); $('#emojis').classList.toggle('hidden', !formOn);
   const can = tab === 'dead' ? true : canPublic; $('#msg').disabled = !can; document.querySelectorAll('#emojis button').forEach(b => b.disabled = !can);
   $('#log').innerHTML = S.log.map(l => `<div class="entry">${esc(l.text)}</div>`).join('') + S.notes.map(n => `<div class="entry note">Private: ${esc(n)}</div>`).join('');
   $('#recap').innerHTML = S.phase !== 'over' ? `<div class="entry">${t('recapWait')}</div>` :
-    `<div class="recap"><h4>${t('awards')}</h4>${S.awards.map(a => `<div class="msg">${esc(a)}</div>`).join('') || '-'}<h4>${t('whoWas')}</h4>${S.players.filter(p => !p.spectator).map(p => `<div class="entry">${esc(p.name)}: ${ICON[p.role]} ${nm(p.role)}</div>`).join('')}<h4>${t('nightBy')}</h4>${S.story.map(x => `<div class="entry">${esc(x)}</div>`).join('')}<div class="entry"><a href="history.html" style="color:var(--accent)">${t('history')} →</a></div></div>`;
+    `<div class="recap"><h4>${t('awards')}</h4>${S.awards.map(a => `<div class="msg">${esc(a)}</div>`).join('') || '-'}<h4>${t('whoWas')}</h4>${S.players.filter(p => !p.spectator).map(p => `<div class="entry">${esc(p.name)}: ${portrait(p.role, 18)} ${nm(p.role)}</div>`).join('')}<h4>${t('nightBy')}</h4>${S.story.map(x => `<div class="entry">${esc(x)}</div>`).join('')}<div class="entry"><a href="history.html" style="color:var(--accent)">${t('history')} →</a></div></div>`;
 }
 setInterval(() => {
   if (!S) return;
@@ -525,3 +561,66 @@ function trans(kind) {
   const el = $('#trans'); el.className = ''; void el.offsetWidth; el.className = kind; setTimeout(() => { el.className = ''; }, 3000);
 }
 $('#fx').innerHTML = Array.from({ length: 16 }, () => `<i class="mote" style="left:${Math.random() * 100}%;animation-duration:${9 + Math.random() * 12}s;animation-delay:${-Math.random() * 20}s"></i>`).join('');
+
+// ---------- animated role dealing ----------
+function deal() {
+  const el = $('#deal'), c = el.querySelector('.rcard');
+  c.className = 'rcard dealing';
+  el.querySelector('.front').className = 'face front' + (cosSel().back ? ' cb-' + cosSel().back : '');
+  el.querySelector('.front').innerHTML = '<b>🎭</b>Dealing your role...';
+  el.querySelector('.back').innerHTML = `${portrait(S.role, 120)}<span class="tag">${esc(t('youare', ''))}</span><strong>${esc(nm(S.role))}</strong><span class="tag" style="font-size:.8rem">${esc(desc(S.role))}</span>`;
+  el.classList.remove('hidden');
+  setTimeout(() => c.classList.add('flipped'), 1400);
+  clearTimeout(deal.t); deal.t = setTimeout(() => el.classList.add('hidden'), 6500);
+}
+$('#deal').onclick = () => $('#deal').classList.add('hidden');
+
+// ---------- generated phase music (WebAudio, no files) ----------
+let musicOn = localStorage.music !== '0', mTick = null, mi = 0;
+const mtone = (f, d, v = .04, type = 'sine') => { if (musicOn && !muted) tone(f, d, 0, type, v); };
+function musicMode() {
+  if (!S || ['lobby', 'over'].includes(S.phase)) return null;
+  if (S.phase === 'night') return 'night';
+  if (S.phase === 'day') { const left = S.endsAt && S.dur ? (S.endsAt - Date.now()) / S.dur : 1, votes = Object.values(S.votes || {}).filter(Boolean).length; return left < 0.3 || votes >= 2 ? 'vote' : 'day'; }
+  return 'night';
+}
+function musicStep() {
+  const m = musicMode(); if (!m) return; mi++;
+  if (m === 'day') mtone([262, 330, 392, 523, 392, 330, 294, 349][mi % 8], .7, .035, 'triangle');
+  else if (m === 'night') { if (mi % 8 === 1) mtone(55, 3.5, .06); if (Math.random() < .25) mtone([220, 262, 311, 330][Math.floor(Math.random() * 4)], 1.4, .025); }
+  else { if (mi % 2 === 0) { mtone(60, .18, .12); setTimeout(() => mtone(50, .2, .1), 150); } if (mi % 4 === 0) mtone(466, .5, .02, 'sawtooth'); }   // heartbeat while the vote is tense
+}
+function syncMusic() { const want = musicOn && S && !['lobby', 'over'].includes(S.phase); if (want && !mTick) mTick = setInterval(musicStep, 450); if (!want && mTick) { clearInterval(mTick); mTick = null; } }
+const setMusicLabel = () => { $('#mus').textContent = musicOn ? 'Music on' : 'Music off'; };
+$('#mus').onclick = () => { musicOn = !musicOn; localStorage.music = musicOn ? '1' : '0'; setMusicLabel(); syncMusic(); };
+setMusicLabel();
+document.addEventListener('click', () => { if (ac) ac.resume(); }, { once: false });
+
+// ---------- polls ----------
+function renderPoll() {
+  const el = $('#poll'), p = S.poll;
+  if (!p || !['day', 'lastwords'].includes(S.phase)) return el.classList.add('hidden');
+  el.classList.remove('hidden');
+  const tot = p.counts.reduce((a, b) => a + b, 0) || 1, left = Math.max(0, Math.round((p.endsAt - Date.now()) / 1000));
+  el.innerHTML = `<div class="bh"><span>📊 ${esc(p.q)}</span><span class="tag">by ${esc(p.by)} · ${p.closed ? 'closed' : left + 's'}</span></div>` +
+    p.opts.map((o, i) => `<button class="popt ${p.mine === i ? 'mine' : ''}" data-i="${i}" ${p.closed || !S.alive ? 'disabled' : ''}><span class="pbar" style="width:${p.counts[i] / tot * 100}%"></span><span class="plabel">${esc(o)}</span><b>${p.counts[i]}</b></button>`).join('');
+  el.querySelectorAll('[data-i]').forEach(b => b.onclick = () => socket.emit('pollvote', +b.dataset.i));
+}
+
+// ---------- emote wheel + stickers ----------
+const WHEEL = ['😂', '😱', '🤔', '👀', '🔪', '👍', '😈', '🙏', '😡', '🤫', '💀', '🎭'];
+const STICKERS = ['🕵️', '🔍', '🩸', '🔫', '🧪', '🃏', '🛡️', '🤐', '⚖️', '🗳️', '🌙', '☀️', '🏠', '👑', '🎩', '💃', '🕶️', '⛓️', '🔨', '💔', '🔥', '🎉', '🥳', '😎', '😴', '🤥', '🫣', '😇', '🥶', '🤯', '🙄', '😭', '🤝', '🫡', '💯', '🚨'];
+function toggleEmotes() {
+  const el = $('#emotes'); if (!el.classList.contains('hidden')) return el.classList.add('hidden');
+  el.innerHTML = `<div class="wheel">${WHEEL.map((e, i) => `<button style="--a:${i * 30}deg">${e}</button>`).join('')}<span class="hubl">React</span></div><div class="stk">${STICKERS.map(e => `<button>${e}</button>`).join('')}</div>`;
+  el.classList.remove('hidden');
+}
+$('#emotes').onclick = e => { if (e.target.tagName === 'BUTTON' && !$('#msg').disabled) socket.emit('chat', { text: e.target.textContent }); };
+$('#emojis').insertAdjacentHTML('beforeend', '<button type="button" id="moreEmo" title="More reactions">＋</button>');
+$('#emojis').onclick = e => { if (e.target.id === 'moreEmo') return toggleEmotes(); if (e.target.tagName === 'BUTTON' && !e.target.disabled) socket.emit('chat', { text: e.target.textContent }); };
+
+// ---------- quality: connection banner, keyboard, accessibility ----------
+socket.on('disconnect', () => $('#conn').classList.remove('hidden'));
+socket.on('connect', () => $('#conn').classList.add('hidden'));
+$('#name').onkeydown = $('#code').onkeydown = e => { if (e.key === 'Enter') ($('#code').value ? $('#join') : $('#create')).click(); };
+[['name', 'Your name'], ['pw', 'Room password'], ['code', 'Room code'], ['msg', 'Chat message']].forEach(([i, l]) => $('#' + i).setAttribute('aria-label', l));
