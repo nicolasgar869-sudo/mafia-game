@@ -33,6 +33,8 @@ const ADJ = { hub: ['financial', 'industrial', 'docks', 'heights'], financial: [
 const dist = (a, b) => (a === b ? 0 : ADJ[a].includes(b) ? 1 : 2);        // 2 = non-adjacent (opposite corners)
 const fac = p => (isM(p) ? 'mafia' : p.role === 'serialkiller' ? 'sk' : p.role === 'jester' ? 'jester' : 'town');
 const PERSONAS = ['calm', 'paranoid', 'quiet', 'loud'];
+const FRAMES = ['bronze', 'crimson', 'gold', 'pink', 'emerald'], COLORS = ['cyan', 'mint'];
+const cleanCos = c => ({ frame: FRAMES.includes(c && c.frame) ? c.frame : '', color: COLORS.includes(c && c.color) ? c.color : '' });
 const newCode = () => { let c; do { c = Math.random().toString(36).slice(2, 6).toUpperCase(); } while (rooms[c]); return c; };
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const list = r => Object.values(r.players);
@@ -42,6 +44,7 @@ const log = (r, text) => r.log.push({ text, day: r.day, phase: r.phase });
 const clean = s => String(s || '').replace(/[<>]/g, '').trim();
 const filt = (r, t) => (r.set.filter ? t.replace(BAD, m => '*'.repeat(m.length)) : t);
 const clamp = (v, a, b, d) => Math.min(b, Math.max(a, parseInt(v) || d));
+const mem = (r, id) => (r.mem[id] = r.mem[id] || { accused: {}, voted: [], today: 0, silent: 0 });   // what bots remember about each player
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const later = (r, ms, fn) => setTimeout(function t() { if (r.paused) return setTimeout(t, 1500); fn(); }, ms);
 
@@ -59,7 +62,7 @@ function view(r, me) {
     sab: Object.fromEntries(Object.entries(r.sab || {}).filter(([, d]) => d === r.day)), leads: Object.fromEntries(Object.keys(DISTRICTS).map(d => [d, control(r, d) === fac(me)])), tutorial: !!r.tutorial, dchat: ((!me.alive && r.phase !== 'lobby') || over) ? r.dchat : [], turn: r.phase === 'night' ? r.turn : null, step: r.step, steps: (r.order || []).length, dur: r.dur, event: r.event, silenced: r.phase === 'day' ? r.silenced : null, skipN: Object.keys(r.skip || {}).length,
     potions: me.potions || null, lover: me.lover ? r.players[me.lover]?.name : null, whispers: me.whispers,
     players: list(r).map(q => ({
-      id: q.id, name: q.name, av: q.av, bot: !!q.bot, muted: !!r.muted[q.id], alive: q.alive || (!!q.hidden && q.id !== me.id), pos: q.pos, ready: !!q.ready || !!q.bot, persona: q.bot ? q.persona : undefined, connected: q.connected, spectator: !!q.spectator,
+      id: q.id, name: q.name, av: q.av, bot: !!q.bot, muted: !!r.muted[q.id], cos: q.cos, alive: q.alive || (!!q.hidden && q.id !== me.id), pos: q.pos, ready: !!q.ready || !!q.bot, persona: q.bot ? q.persona : undefined, connected: q.connected, spectator: !!q.spectator,
       role: (over || (!q.alive && !q.spectator && r.set.reveal && !q.hidden) || q.id === me.id || (isM(me) && isM(q))) ? q.role : null,
     })),
     log: r.log, chat: r.chat,
@@ -101,9 +104,10 @@ function startGame(r) {
   ps.forEach((p, j) => Object.assign(p, { role: best[j], alive: true, notes: [], whispers: [], lover: null, shots: best[j] === 'vigilante' ? 1 : 0, potions: best[j] === 'witch' ? { save: 1, poison: 1 } : null }));
   if (r.tutorial) { const me = ps.find(p => !p.bot), d = ps.find(p => p.role === 'detective'); if (me && d && me !== d) [me.role, d.role] = [d.role, me.role]; }   // tutorial: you are the Detective
   if (s.metro) ps.forEach(p => Object.assign(p, { ip: 50, pos: pick(Object.keys(DISTRICTS)), moves: [], kevlar: false, longRange: false, smug: false, hidden: false, frozenDay: 0, movedDay: 0 }));
+  if (r.tutorial && s.metro) { const h = ps.find(p => !p.bot); if (h) h.ip = 90; }   // map tutorial: enough IP to buy armor
   r.order = ORDER.filter(g => ps.some(p => grp(p) === g));
   if (s.lovers && n >= 4) { const [a, b] = shuffle([...ps]); a.lover = b.id; b.lover = a.id; }
-  Object.assign(r, { day: 0, log: [], chat: [], mchat: [], winner: null, lw: null, story: [], awards: [], voteTotals: {}, msgs: {}, ment: {}, dchat: [], vh: [], event: null, silenced: null, jam: {}, framed: {}, taps: [], sab: {}, veto: {}, fund: {}, delayed: [], proxy: {}, bypass: {}, moved: {}, facUsed: {} });
+  Object.assign(r, { day: 0, log: [], chat: [], mchat: [], winner: null, lw: null, story: [], awards: [], voteTotals: {}, msgs: {}, ment: {}, dchat: [], vh: [], event: null, silenced: null, jam: {}, framed: {}, taps: [], sab: {}, veto: {}, fund: {}, delayed: [], hired: {}, mem: {}, proxy: {}, bypass: {}, moved: {}, facUsed: {} });
   log(r, `The game begins with ${n} players and ${m} Mafia hiding among them.`);
   startNight(r);
 }
@@ -163,6 +167,7 @@ function attack(r, id, how, g) {
   const v = r.players[id], e = r.eff;
   if (!v || !v.alive) return;
   if (r.set.metro && r.jam[v.pos] && !r.bypass[g]) return;                         // Signal Jammer blocks the attack
+  if (r.set.metro && r.hired && r.hired[id]) return log(r, `${v.name} was attacked but a hired bodyguard drove the attacker off.`);
   if (id === e.heal) return log(r, `${v.name} was attacked but saved by the Doctor.`);
   if (id === e.save) return log(r, `${v.name} was attacked but saved by a mysterious potion.`);
   const bg = livingBy(r, 'bodyguard')[0];
@@ -190,6 +195,8 @@ function endNight(r) {
   if (r.wpoison && !bl('witch')) attack(r, r.wpoison, 'poisoned', 'witch');
   if (!r.log.slice(before).some(l => /killed|shot|saved|poisoned|heartbreak/.test(l.text))) log(r, 'The night passed quietly. No one died.');
   if (r.silence && !bl('silencer') && r.players[r.silence]?.alive) { r.silenced = r.silence; log(r, `${r.players[r.silence].name} was silenced and cannot speak or vote today.`); }
+  const dl = r.log.slice(before).map(l => l.text).filter(x => /was (killed|shot|poisoned)|killed protecting/.test(x));
+  if (dl.length) botReactDeath(r, dl);
   if (r.set.metro) metroMorning(r);
   if (!checkWin(r)) { botDay(r); botMove(r); emit(r); }
 }
@@ -197,6 +204,7 @@ const weight = (r, p) => (p.role === 'mayor' ? 2 : 1) + (r.set.metro && control(
 function dayComplete(r) { return living(r).every(p => p.id in r.votes || p.id === r.silenced); }
 function endDay(r) {
   if (r.phase !== 'day') return;
+  living(r).forEach(p => { const m = mem(r, p.id); m.voted.push({ day: r.day, target: r.votes[p.id] || null }); if (!m.today) m.silent++; m.today = 0; });
   const tally = {};
   Object.entries(r.votes).forEach(([voter, t]) => {
     if (t && r.players[t]?.alive) { tally[t] = (tally[t] || 0) + weight(r, r.players[voter]); r.voteTotals[t] = (r.voteTotals[t] || 0) + 1; }
@@ -209,9 +217,10 @@ function endDay(r) {
   const v = r.players[id];
   if (r.set.metro && (r.veto || {})[fac(v)]) { delete r.veto[fac(v)]; log(r, `Executive Veto! The guilty verdict against ${v.name} was thrown out.`); return startNight(r); }
   kill(r, v, `lynched by majority vote (${n} votes)`);
-  if (r.set.reveal) r.vh.push({ mafia: isM(v), voters: Object.entries(r.votes).filter(([, tt]) => tt === id).map(([x]) => x) });
+  if (r.set.reveal) r.vh.push({ mafia: isM(v), voters: [...new Set([...Object.entries(r.votes).filter(([, tt]) => tt === id).map(([x]) => x), ...list(r).filter(q => q.id !== id && (mem(r, q.id).accused[id] || 0) > 0).map(q => q.id)])] });
   if (v.role === 'jester') { log(r, `${v.name} was the Jester and wins by being lynched!`); return finish(r, 'jester'); }
   if (checkWin(r)) return;
+  botReactDeath(r, [`${v.name} was lynched`]);
   if (r.set.lastWords && v.alive === false) { r.lw = id; setPhase(r, 'lastwords', LAST_WORDS_SECS); log(r, `${v.name} may speak their last words.`); emit(r); }
   else startNight(r);
 }
@@ -334,7 +343,7 @@ function metroMorning(r) {
     const lines = r.acts.filter(a => who.some(q => a.startsWith(q.name + ' (')));
     by.notes.push(r.jam[d] ? `Wiretap on ${tg ? tg.name : DISTRICTS[d].name}: signal jammed.` : `Wiretap on ${tg ? tg.name + ' (' + DISTRICTS[d].name + ')' : DISTRICTS[d].name + ': ' + (who.map(q => q.name).join(', ') || 'empty')}: ${lines.join('; ') || 'no night activity'}.`);
   });
-  Object.assign(r, { jam: {}, framed: {}, taps: [], bypass: {} });
+  Object.assign(r, { jam: {}, framed: {}, taps: [], bypass: {}, hired: {} });
 }
 function metroDay(r, p, m) {
   const { type, target, item } = m, frozen = p.frozenDay === r.day, t = r.players[target];
@@ -358,7 +367,7 @@ function metroDay(r, p, m) {
     }
     r.facUsed[p.id] = true; return emit(r);
   }
-  const f = fac(p), base = { proxy: 25, indict: 40, donate: 25, veto: 0, kevlar: 60, jammer: 40, dossier: 40, longrange: 35, wiretap: 50, scraps: 35 }[item];
+  const f = fac(p), base = { proxy: 25, indict: 40, donate: 25, veto: 0, kevlar: 60, jammer: 40, dossier: 40, longrange: 35, wiretap: 50, scraps: 35, hire: 45 }[item];
   if (base === undefined) return;
   if (frozen) return deny(p, 'Your assets are frozen.');
   if (item === 'veto') {
@@ -369,6 +378,7 @@ function metroDay(r, p, m) {
   const bm = ['kevlar', 'jammer', 'dossier', 'longrange', 'wiretap'].includes(item), price = bm && control(r, 'industrial') === f ? Math.ceil(base * 0.75) : base;
   if (p.ip < price) return deny(p, `Not enough IP (need ${price}).`);
   switch (item) {
+    case 'hire': if (!t || !t.alive) return; r.hired[target] = true; break;
     case 'proxy': if (!t || !t.alive) return; r.proxy[target] = (r.proxy[target] || 0) + 1; break;
     case 'indict': p.ip -= price; log(r, `${p.name} called a Special Indictment. The town votes now!`); return endDay(r);
     case 'donate': r.fund[f] = (r.fund[f] || 0) + 25; break;
@@ -404,16 +414,24 @@ function botAct(r, p) {
 }
 // Bots chat and vote using only PUBLIC information (who was mentioned, who has been quiet). They never peek at hidden roles.
 function mention(r, from, text) {
-  list(r).forEach(q => { if (q.alive && q.id !== from.id && text.toLowerCase().includes(sn(q).toLowerCase())) r.ment[q.id] = (r.ment[q.id] || 0) + 1; });
+  list(r).forEach(q => {
+    if (q.alive && q.id !== from.id && text.toLowerCase().includes(sn(q).toLowerCase())) {
+      r.ment[q.id] = (r.ment[q.id] || 0) + 1;
+      const m = mem(r, from.id); m.accused[q.id] = (m.accused[q.id] || 0) + 1;            // who accused whom, across days
+    }
+  });
 }
 function say(r, p, text) {
-  if (r.phase !== 'day' || !p.alive || p.id === r.silenced || r.event === 'blackout') return;
+  if (!['day', 'lastwords'].includes(r.phase) || !p.alive || p.id === r.silenced || r.event === 'blackout') return;
+  mem(r, p.id).today++;
   r.chat.push({ name: p.name, text, ts: Date.now() }); r.msgs[p.id] = (r.msgs[p.id] || 0) + 1;
   mention(r, p, text); emit(r);
 }
 function score(r, p, q) {                       // how suspicious q looks to bot p, from PUBLIC information only
   let v = (r.ment[q.id] || 0) * 2 - Math.min(2, r.msgs[q.id] || 0) * 0.3 + Math.random();
   r.vh.forEach(h => { if (h.voters.includes(q.id)) v += h.mafia ? -3 : 3; });      // voted for someone later revealed innocent = suspicious
+  const m = r.mem[q.id];
+  if (m) { v += Math.min(3, m.silent) * 0.8; const l = m.voted.slice(-2); if (l.length === 2 && l[0].target && l[1].target && l[0].target !== l[1].target) v += 1; }   // silent for days, or flip-flopping votes
   if (p.grudge === q.id) v += 2;                                                     // remembers who accused it
   return v;
 }
@@ -431,6 +449,10 @@ function botSay(r, p) {
     const bad = r.vh.some(h => h.voters.includes(top.id) && !h.mafia), gr = p.grudge && c.find(q => q.id === p.grudge);
     if (bad) o.push({ t: `${sn(top)} voted for an innocent player earlier. That worries me.`, s: top, w: 4 });
     if (gr) o.push({ t: `${sn(gr)} accused me before. I am keeping an eye on them.`, s: gr, w: 3 });
+    const fl = c.find(q => { const l = (r.mem[q.id]?.voted || []).slice(-2); return l.length === 2 && l[0].target && l[1].target && l[0].target !== l[1].target; });
+    if (fl) o.push({ t: `${sn(fl)}, you changed your vote between days. Why?`, s: fl, w: 3 });
+    const sl = c.find(q => (r.mem[q.id]?.silent || 0) >= 2);
+    if (sl) o.push({ t: `${sn(sl)} has said nothing for ${r.mem[sl.id].silent} days. That is not innocent behavior.`, s: sl, w: 3 });
     o.push({ t: `My top suspect is ${sn(top)}. Prove me wrong.`, s: top, w: 3 }, { t: `${sn(quiet)} has said almost nothing. Silence is a strategy.`, s: quiet });
     if (dead) o.push({ t: `Poor ${dead.text.split(' was ')[0]}. Think about who benefits from that.` });
     o = o.flatMap(x => Array(x.w || 1).fill(x));
@@ -465,6 +487,14 @@ function botReact(r, from, text) {
     if (Math.random() < 0.75) later(r, 2000 + Math.random() * 3000, () => say(r, b, pick([`Why me, ${sn(from)}? I'm innocent!`, "That's not fair. I've been trying to help.", `${sn(from)}, you are accusing me without proof.`, `Hmm, maybe ${sn(from)} is trying to deflect.`])));
   });
 }
+function botReactDeath(r, lines) {
+  const names = lines.map(l => l.split(' was ')[0]);
+  list(r).filter(p => p.bot && p.alive && Math.random() < 0.6).forEach(p => {
+    const n = pick(names);
+    const t = { calm: [`😔 Poor ${n}.`, 'That is sad. Stay sharp everyone.'], paranoid: ['I KNEW something like this would happen. 👀', 'Trust nobody. Nobody at all.'], quiet: ['😶', '...'], loud: ['NO WAY!! 😱', `${n.toUpperCase()}?! WHO DID THIS?!`] }[p.persona || 'calm'];
+    later(r, 1500 + Math.random() * 4500, () => say(r, p, pick(t)));
+  });
+}
 function botDay(r) {
   const d = r.day, ms = Math.max(5000, r.set.day * 1000), ok = () => r.phase === 'day' && r.day === d;
   list(r).filter(p => p.bot && p.alive).forEach(p => {
@@ -478,21 +508,21 @@ io.on('connection', socket => {
   let room = null, player = null;
   const err = msg => socket.emit('err', msg);
   const attach = (r, p) => { room = r; player = p; p.sid = socket.id; p.connected = true; socket.join(r.code); socket.emit('joined', { code: r.code }); emit(r); };
-  const mk = (id, name, av, spectator) => ({ ready: false, id, name, av: clean(av).slice(0, 4), alive: !spectator, role: null, notes: [], whispers: [], connected: true, spectator, shots: 0 });
+  const mk = (id, name, av, spectator) => ({ cos: { frame: '', color: '' }, ready: false, id, name, av: clean(av).slice(0, 4), alive: !spectator, role: null, notes: [], whispers: [], connected: true, spectator, shots: 0 });
   const host = () => room && room.host === player.id;
 
-  socket.on('create', ({ name, pid, av, pw }) => {
+  socket.on('create', ({ name, pid, av, pw, cos }) => {
     name = clean(name).slice(0, 16); if (!name) return err('Enter a name.');
     const r = makeRoom(pid, pw);
-    r.players[pid] = mk(pid, name, av, false);
+    r.players[pid] = mk(pid, name, av, false); r.players[pid].cos = cleanCos(cos);
     rooms[r.code] = r; attach(r, r.players[pid]);
   });
 
-  socket.on('join', ({ code, name, pid, av, pw }) => {
+  socket.on('join', ({ code, name, pid, av, pw, cos }) => {
     const r = rooms[String(code || '').toUpperCase().trim()];
     if (!r) return err('Room not found. Check the code.');
     if (r.players[pid]) {
-      const p = r.players[pid];
+      const p = r.players[pid]; if (cos) p.cos = cleanCos(cos);
       if (!p.connected && r.phase !== 'lobby') r.chat.push({ sys: 1, text: `${p.name} is back.` });
       return attach(r, p);
     }
@@ -501,7 +531,7 @@ io.on('connection', socket => {
     if (list(r).length >= MAX_PLAYERS) return err('Room is full.');
     if (list(r).some(p => p.name.toLowerCase() === name.toLowerCase())) return err('That name is taken in this room.');
     const late = r.phase !== 'lobby';
-    r.players[pid] = mk(pid, name, av, late);
+    r.players[pid] = mk(pid, name, av, late); r.players[pid].cos = cleanCos(cos);
     if (late) r.chat.push({ sys: 1, text: `${name} joined as a spectator.` });
     attach(r, r.players[pid]);
   });
@@ -535,6 +565,7 @@ io.on('connection', socket => {
     room.players[id] = { ...mk(id, nm, '🤖', false), bot: true, persona: pick(PERSONAS) };
     emit(room);
   });
+  socket.on('cos', c => { if (player) { player.cos = cleanCos(c); emit(room); } });
   socket.on('ready', () => { if (room && room.phase === 'lobby' && !player.bot) { player.ready = !player.ready; emit(room); } });
   socket.on('botconfig', ({ id, name, persona }) => {
     const b = room && room.players[id];
@@ -581,11 +612,11 @@ io.on('connection', socket => {
     if (!room || !text) return;
     if (room.muted[player.id]) return err('The host muted you.');
     if (!canChat()) return;
-    if (deadChat()) { room.dchat.push({ name: player.name, text: filt(room, text), ts: Date.now() }); return emit(room); }
+    if (deadChat()) { room.dchat.push({ name: player.name, text: filt(room, text), ts: Date.now(), c: player.cos && player.cos.color }); return emit(room); }
     room.msgs[player.id] = (room.msgs[player.id] || 0) + 1;
-    const msg = { name: player.name, text: filt(room, text), ts: Date.now() };
+    const msg = { name: player.name, text: filt(room, text), ts: Date.now(), c: player.cos && player.cos.color };
     (room.phase === 'night' ? room.mchat : room.chat).push(msg);
-    if (room.phase === 'day') { mention(room, player, text); botReact(room, player, text); }
+    if (room.phase === 'day') { mem(room, player.id).today++; mention(room, player, text); botReact(room, player, text); }
     emit(room);
   });
   socket.on('whisper', ({ to, text }) => {
@@ -611,10 +642,10 @@ io.on('connection', socket => {
     const t = room && room.players[id], h = room && room.players[room.host];
     if (t && h && h.sid) io.to(h.sid).emit('reported', { by: player.name, who: t.name });
   });
-  socket.on('tutorial', ({ name, pid, av }) => {
+  socket.on('tutorial', ({ name, pid, av, cos, metro }) => {
     const r = makeRoom(pid, ''); r.tutorial = true;
     Object.assign(r.set, { night: 15, day: 60, lastWords: false, botLevel: 'easy' });
-    r.players[pid] = mk(pid, clean(name).slice(0, 16) || 'You', av, false); rooms[r.code] = r;
+    r.players[pid] = mk(pid, clean(name).slice(0, 16) || 'You', av, false); r.players[pid].cos = cleanCos(cos); r.set.metro = !!metro; rooms[r.code] = r;
     ['Ada', 'Ben', 'Cleo', 'Dex'].forEach((n, i) => { const id = 'bot' + i + Math.random().toString(36).slice(2, 6); r.players[id] = { ...mk(id, 'Bot ' + n, '🤖', false), bot: true }; });
     attach(r, r.players[pid]); startGame(r);
   });
