@@ -7,8 +7,8 @@ let mutedNames = new Set(JSON.parse(localStorage.mutedNames || '[]'));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const show = id => ['home', 'lobby', 'game'].forEach(x => $('#' + x).classList.toggle('hidden', x !== id));
 const MAFIA = ['mafia', 'godfather', 'silencer'], isM = r => MAFIA.includes(r);
-const ICON = { jailer: '⛓️', mafia: '🔪', godfather: '🎩', silencer: '🤐', detective: '🔍', doctor: '⚕️', bodyguard: '🛡️', vigilante: '🔫', mayor: '🏛️', jester: '🃏', witch: '🧪', escort: '💃', spy: '🕶️', serialkiller: '🪓', town: '🏠' };
-const BASIC = ['detective', 'doctor', 'vigilante', 'bodyguard', 'mayor', 'jester', 'godfather'], UNIQUE = ['witch', 'escort', 'spy', 'serialkiller', 'silencer', 'jailer'];
+const ICON = { pirate: '🏴‍☠️', survivor: '🦺', plaguebearer: '🦠', jailer: '⛓️', mafia: '🔪', godfather: '🎩', silencer: '🤐', detective: '🔍', doctor: '⚕️', bodyguard: '🛡️', vigilante: '🔫', mayor: '🏛️', jester: '🃏', witch: '🧪', escort: '💃', spy: '🕶️', serialkiller: '🪓', town: '🏠' };
+const BASIC = ['detective', 'doctor', 'vigilante', 'bodyguard', 'mayor', 'jester', 'godfather'], UNIQUE = ['witch', 'escort', 'spy', 'serialkiller', 'silencer', 'jailer', 'pirate', 'survivor', 'plaguebearer'];
 
 // ---------- languages: [English, Bahasa Melayu, 中文]. Host settings and server log lines stay in English. ----------
 const LANGS = { en: 'English', ms: 'Bahasa Melayu', zh: '中文' }, LI = { en: 0, ms: 1, zh: 2 }, VOICE = { en: 'en-US', ms: 'ms-MY', zh: 'zh-CN' };
@@ -50,6 +50,7 @@ const D = {
   rematch: ['Play again (new roles)', 'Main lagi (peranan baharu)', '再来一局（新角色）'], backLobby: ['Back to lobby', 'Kembali ke lobi', '返回大厅'],
   whisper: ['Whisper', 'Bisik', '私语'], whisperQ: ['Whisper (only they will see it):', 'Bisikan (hanya mereka nampak):', '私语（只有对方能看到）：'], yourvote: ['YOUR VOTE', 'UNDI ANDA', '你的投票'],
   silencedTag: ['🤐 silenced', '🤐 disenyapkan', '🤐 被禁言'], mutedTag: ['🚫 muted', '🚫 dibisukan', '🚫 被禁言'],
+  a_infect: ['Infect', 'Jangkiti', '感染'], a_duel: ['Duel', 'Berduel', '决斗'], winPirate: ['The Pirate wins.', 'Lanun menang.', '海盗获胜。'], winPlague: ['The plague wins. The infected win together.', 'Wabak menang. Yang dijangkiti menang bersama.', '瘟疫获胜，所有感染者一同获胜。'], winRed: ['The Red team wins.', 'Pasukan Merah menang.', '红队获胜。'], winBlue: ['The Blue team wins.', 'Pasukan Biru menang.', '蓝队获胜。'],
   a_jail: ['Jail', 'Penjara', '监禁'], a_kill: ['Kill', 'Bunuh', '击杀'], a_heal: ['Heal', 'Sembuh', '治疗'], a_guard: ['Guard', 'Kawal', '保护'], a_block: ['Block', 'Sekat', '阻挠'], a_inspect: ['Investigate', 'Siasat', '调查'],
   a_shoot: ['Shoot', 'Tembak', '开枪'], a_save: ['Save', 'Selamatkan', '拯救'], a_poison: ['Poison', 'Racun', '下毒'], a_silence: ['Silence', 'Senyapkan', '禁言'],
   tYou: ['you', 'anda', '你'], tHost: ['host', 'hos', '房主'], tBot: ['bot', 'bot', '机器人'], tOff: ['offline', 'luar talian', '离线'], kick: ['Kick', 'Tendang', '踢出'],
@@ -80,6 +81,9 @@ const D = {
   a_love: ['Till Death: you and your lover both survive', 'Hingga Akhir: anda dan kekasih sama-sama hidup', '生死相依：你和恋人都活到最后'], a_unlock: ['Achievement unlocked', 'Pencapaian dibuka', '解锁成就'],
 };
 const R = {   // role names, then descriptions
+  pirate: [['Pirate', 'Lanun', '海盗'], ['Challenge a player to a duel each night. Both pick Strike, Trick or Guard. Win two duels to win the game.', 'Cabar seorang pemain berduel setiap malam. Kedua-duanya pilih Strike, Trick atau Guard. Menang dua duel untuk menang permainan.', '每晚向一名玩家发起决斗，双方选择出招（攻击、诡计、防御）。赢得两场决斗即获胜。']],
+  survivor: [['Survivor', 'Survivor', '幸存者'], ['Just stay alive. You can wear a bulletproof vest twice to survive a night attack.', 'Hanya perlu terus hidup. Anda boleh memakai jaket kalis peluru dua kali untuk selamat daripada serangan malam.', '只要活下来就行。你可以穿两次防弹衣来抵挡夜间袭击。']],
+  plaguebearer: [['Plaguebearer', 'Pembawa Wabak', '瘟疫使者'], ['Infect one player each night. If every living player is infected, you and all the infected win together.', 'Jangkitkan seorang pemain setiap malam. Jika semua pemain hidup dijangkiti, anda dan semua yang dijangkiti menang bersama.', '每晚感染一名玩家。若所有存活玩家都被感染，你和所有感染者一同获胜。']],
   jailer: [['Jailer', 'Sipir', '狱卒'], ['Jail one player each night. You can talk privately, and you may execute them (2 times per game).', 'Penjarakan seorang pemain setiap malam. Anda boleh bercakap secara peribadi dan menghukum mati mereka (2 kali).', '每晚监禁一名玩家，可私下交谈，也可处决他（全局 2 次）。']],
   mafia: [['Mafia', 'Mafia', '黑手党'], ['Choose a victim with your team. All Mafia must agree.', 'Pilih mangsa bersama pasukan. Semua Mafia mesti bersetuju.', '和队友选择目标，所有黑手党必须一致。']],
   godfather: [['Godfather', 'Godfather', '教父'], ['Mafia leader. The Detective sees you as innocent.', 'Ketua Mafia. Detektif nampak anda tidak bersalah.', '黑手党首领，侦探会认为你是无辜的。']],
@@ -97,7 +101,8 @@ const R = {   // role names, then descriptions
   town: [['Townsperson', 'Penduduk', '平民'], ['Find the Mafia and vote them out.', 'Cari Mafia dan undi mereka keluar.', '找出黑手党并投票淘汰他们。']],
 };
 const t = (k, ...a) => String((D[k] || [k])[LI[lang]] ?? (D[k] || [k])[0]).replace(/\{(\d)\}/g, (_, i) => a[i]);
-const nm = k => (R[k] ? R[k][0][LI[lang]] : k), desc = k => R[k][1][LI[lang]];
+const nm = k => { k = String(k).startsWith('mafia_') ? 'mafia' : k; return R[k] ? R[k][0][LI[lang]] : k; }, desc = k => R[k][1][LI[lang]];
+const myGrp = () => (isM(S.role) ? (S.team ? 'mafia_' + S.team : 'mafia') : S.role);
 function applyI18n() {
   document.documentElement.lang = lang;
   document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
@@ -124,6 +129,9 @@ const PR = {
   escort: ['#c0392b', '#f1c9a5', '<path d="M17 30q-2-21 15-21t15 21v11h-5V27H22v14h-5z" fill="#3b2a20"/><path d="M28 33q4 3 8 0" stroke="#d6336c" stroke-width="2" fill="none"/>'],
   spy: ['#2b2f38', '#e8c4a0', '<path d="M14 62l8-18 10 8 10-8 8 18z" fill="#1a1d24"/>' + cap('#222') + '<rect x="21" y="24" width="22" height="5" rx="2" fill="#0b0b0b"/>'],
   serialkiller: ['#2a2018', '#f3f3f3', '<circle cx="27" cy="25" r="2.6" fill="#222"/><circle cx="37" cy="25" r="2.6" fill="#222"/><rect x="29" y="31" width="6" height="6" rx="1" fill="none" stroke="#999"/><path d="M26 19l2 5M38 19l-2 5" stroke="#c0392b" stroke-width="2"/><path d="M48 40l8 12" stroke="#ddd" stroke-width="3"/>'],
+  pirate: ['#7a1f1f', '#e0b894', '<path d="M15 21q17-20 34 0z" fill="#16161d"/><rect x="15" y="19" width="34" height="3" fill="#16161d"/><circle cx="32" cy="12" r="2.6" fill="#eee"/><path d="M25 10l14 4M39 10l-14 4" stroke="#eee" stroke-width="1"/><circle cx="37" cy="27" r="3.6" fill="#111"/><path d="M33 24L21 17" stroke="#111" stroke-width="1.4"/><circle cx="48" cy="46" r="2" fill="#ffd166"/>'],
+  survivor: ['#5b7d3a', '#e0b894', '<path d="M19 21q13-15 26 0z" fill="#f2b705"/><rect x="19" y="19" width="26" height="3" fill="#c98f00"/><rect x="22" y="47" width="20" height="17" fill="#f26b3a"/><path d="M27 47v17M37 47v17" stroke="#fff" stroke-width="2"/>'],
+  plaguebearer: ['#3f3f2a', '#b9d77a', '<path d="M16 31q0-23 16-23t16 23l-4 6V25H20v12z" fill="#2c2c1c"/><path d="M32 25l-5 12h10z" fill="#d8c9a0"/><circle cx="26" cy="25" r="2.4" fill="#e8ff9a"/><circle cx="38" cy="25" r="2.4" fill="#e8ff9a"/><circle cx="50" cy="46" r="3" fill="#8bdc4a"/><circle cx="14" cy="50" r="2" fill="#8bdc4a"/>'],
   jailer: ['#334155', '#e0b894', cap('#1e293b') + '<path d="M29 12l3-4 3 4-3 3z" fill="#facc15"/><circle cx="49" cy="46" r="4.5" fill="none" stroke="#e5c07b" stroke-width="2"/><path d="M49 51v8M49 55h4" stroke="#e5c07b" stroke-width="2"/>'],
   town: ['#4a90d9', '#f1c9a5', cap('#e07a2f')],
 };
@@ -139,8 +147,8 @@ const toast = m => { const e = $('#toast'); e.textContent = m; e.style.display =
 
 // ---------- rules + achievements dialogs ----------
 function openRules() {
-  const li = k => `<p><b>${nm(k)}:</b> ${desc(k)}</p>`;
-  $('#rulesbody').innerHTML = `<h2>${t('howto')}</h2><p>${t('rulesIntro')}</p><p>${t('rulesWin')}</p><h3>${t('rCore')}</h3>${['mafia', 'town', 'detective', 'doctor'].map(li).join('')}<h3>${t('rExtra')}</h3>${['godfather', 'bodyguard', 'vigilante', 'mayor', 'jester'].map(li).join('')}<h3>${t('rUnique')}</h3>${UNIQUE.map(li).join('')}<p>${t('loverRule')}</p>`;
+  const li = k => `<p>${badge(k)} <b>${nm(k)}:</b> ${desc(k)}</p>`;
+  $('#rulesbody').innerHTML = `<h2>${t('howto')}</h2><p>${t('rulesIntro')}</p><p>${t('rulesWin')}</p><h3>${t('rCore')}</h3>${['mafia', 'town', 'detective', 'doctor'].map(li).join('')}<h3>${t('rExtra')}</h3>${['godfather', 'bodyguard', 'vigilante', 'mayor', 'jester'].map(li).join('')}<h3>${t('rUnique')}</h3>${UNIQUE.map(li).join('')}<p>${t('loverRule')}</p><h3>Game modes</h3>${MODESD.map(m => `<p><b>${m[1]} ${m[2]}:</b> ${m[3]}</p>`).join('')}`;
   $('#rules').showModal();
 }
 const ACH = ['first', 'survivor', 'jester', 'mafia', 'sharp', 'saver', 'vet', 'sk', 'love'];
@@ -199,10 +207,10 @@ $('#narr').onclick = () => { narrOn = !narrOn; localStorage.narr = narrOn ? '1' 
 
 // ---------- dramatic reveal ----------
 const revealQ = []; let revealing = false;
-const KIND = x => /lynched/.test(x) ? 'lynched' : /shot by/.test(x) ? 'shot' : /poisoned/.test(x) ? 'poisoned' : /heartbreak|broken heart/.test(x) ? 'heart' : /executed/.test(x) ? 'executed' : /killed protecting/.test(x) ? 'guard' : /removed after/.test(x) ? 'left' : 'killed';
-const DEMO = { killed: '🩸', shot: '💥', poisoned: '🧪', lynched: '🔨', heart: '💔', executed: '⛓️', guard: '🛡️', left: '💨' };
+const KIND = x => /lynched/.test(x) ? 'lynched' : /shot by/.test(x) ? 'shot' : /poisoned/.test(x) ? 'poisoned' : /heartbreak|broken heart/.test(x) ? 'heart' : /executed/.test(x) ? 'executed' : /in a duel/.test(x) ? 'duel' : /caught in the collapse/.test(x) ? 'collapse' : /killed protecting/.test(x) ? 'guard' : /removed after/.test(x) ? 'left' : 'killed';
+const DEMO = { killed: '🩸', shot: '💥', poisoned: '🧪', lynched: '🔨', heart: '💔', executed: '⛓️', guard: '🛡️', left: '💨', duel: '⚔️', collapse: '🌋' };
 function queueReveals(lines) {
-  lines.forEach(x => { const m = x.match(/^(.+?) was (killed|lynched|shot|poisoned|overcome|removed|executed)[^.]*\.(?: They were (\w+)\.)?/); if (m) revealQ.push({ name: m[1], kind: KIND(x), role: m[3] }); });
+  lines.forEach(x => { const m = x.match(/^(.+?) was (killed|lynched|shot|poisoned|overcome|removed|executed|caught)[^.]*\.(?: They were (\w+)\.)?/); if (m) revealQ.push({ name: m[1], kind: KIND(x), role: m[3] }); });
   if (!revealing) nextReveal();
 }
 function nextReveal() {
@@ -214,7 +222,7 @@ function nextReveal() {
   el.querySelector('.back').innerHTML = r.role ? `${portrait(r.role, 120)}<span class="tag">${t('rvRole')}</span>${esc(nm(r.role))}` : '<b>❓</b>';
   const c = el.querySelector('.rcard'); c.classList.remove('flipped'); el.classList.remove('hidden');
   const fx = $('#dfx'); fx.className = 'dfx'; void fx.offsetWidth; fx.className = 'dfx ' + r.kind; fx.dataset.e = DEMO[r.kind];   // a different animation per cause of death
-  if (['killed', 'shot', 'lynched', 'executed'].includes(r.kind)) shake();
+  if (['killed', 'shot', 'lynched', 'executed', 'duel', 'collapse'].includes(r.kind)) shake();
   setTimeout(() => c.classList.add('flipped'), 1100); setTimeout(nextReveal, 3600);
 }
 $('#reveal').onclick = () => { revealQ.length = 0; nextReveal(); };
@@ -254,16 +262,19 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => { tab = b
 // ---------- state ----------
 socket.on('state', s => { $('#err').textContent = ''; $('#err2').textContent = ''; S = s; sounds(); render(); prev = { phase: S.phase, log: S.log.length, turn: S.turn }; });
 function won() {
-  const r = S.role;
-  if (S.winner === 'jester') return r === 'jester';
-  if (S.winner === 'serialkiller') return r === 'serialkiller';
-  if (S.winner === 'mafia') return isM(r);
-  return !isM(r) && r !== 'serialkiller' && r !== 'jester';
+  const r = S.role, w = S.winner;
+  if (r === 'survivor' && S.alive) return true;                      // the Survivor wins just by living
+  if (w === 'red' || w === 'blue') return S.team === w;
+  if (w === 'plague') return !!S.iSick;
+  if (['jester', 'serialkiller', 'pirate'].includes(w)) return r === w;
+  if (w === 'mafia') return isM(r);
+  return !isM(r) && !['serialkiller', 'jester', 'pirate', 'plaguebearer'].includes(r);
 }
 function sounds() {
   const fresh = prev.log >= 0 && S.log.length > prev.log ? S.log.slice(prev.log).map(l => l.text) : [];
-  const deaths = fresh.filter(x => /was (killed|lynched|shot|poisoned|overcome|removed|executed)|killed protecting|heartbreak/.test(x));
+  const deaths = fresh.filter(x => /was (killed|lynched|shot|poisoned|overcome|removed|executed|caught)|killed protecting|heartbreak/.test(x));
   if (deaths.length) { SFX.death(); vib([500]); queueReveals(deaths); }
+  if (prev.phase === 'night' && S.phase === 'day') showMorning(S.day, fresh);
   if (prev.phase !== S.phase) {
     prevCounts = {};
     if (S.phase === 'night' && S.day === 1 && prev.phase && prev.phase !== 'night' && S.role && !S.spectator) deal();
@@ -279,7 +290,7 @@ function sounds() {
       }
     }
   }
-  if (S.phase === 'night' && S.turn && S.turn !== prev.turn) { speak(t('nWake', nm(S.turn))); if (S.alive && S.turn === (isM(S.role) ? 'mafia' : S.role)) vib([90, 50, 90]); }
+  if (S.phase === 'night' && S.turn && S.turn !== prev.turn) { speak(t('nWake', nm(S.turn))); if (S.alive && S.turn === myGrp()) vib([90, 50, 90]); }
 }
 
 function render() {
@@ -295,20 +306,10 @@ function render() {
   const live = ['night', 'day', 'lastwords'].includes(S.phase);
   $('#hostbtns').innerHTML = S.isHost && live ? `<button id="pause">${S.paused ? '▶' : '⏸'}</button><button id="skipphase">⏭</button>` : '';
   $('#pause') && ($('#pause').onclick = () => socket.emit('pause')); $('#skipphase') && ($('#skipphase').onclick = () => socket.emit('skipphase'));
-  renderScene(); renderBanner(); renderTip(); renderMetro(); renderPoll(); renderBallot(); renderPlayers(); renderFeeds(); syncMusic();
+  renderScene(); renderBanner(); renderTip(); renderMetro(); renderPoll(); renderClues(); renderBallot(); renderPlayers(); renderFeeds(); syncMusic();
 }
 
 // night/day skyline: one house per player, windows go dark when a player dies
-function renderScene() {
-  const ps = S.players.filter(p => !p.spectator), W = Math.max(320, ps.length * 58 + 40);
-  const houses = ps.map((p, i) => {
-    const x = 24 + i * 58, off = !p.alive, out = off && prevAlive[p.id] === true;
-    return `<g><title>${esc(p.name)}</title><rect class="house" x="${x}" y="46" width="44" height="34"/><polygon class="roof" points="${x - 4},46 ${x + 22},26 ${x + 48},46"/><rect class="win ${out ? 'out' : off ? 'off' : ''}" x="${x + 15}" y="54" width="14" height="14" rx="2"/></g>`;
-  }).join('');
-  $('#scene').innerHTML = `<svg viewBox="0 0 ${W} 90" preserveAspectRatio="xMidYMax slice"><circle class="orb" cx="${W - 36}" cy="22" r="${S.phase === 'night' ? 11 : 14}"/>${houses}<rect class="ground" x="0" y="80" width="${W}" height="10"/></svg>`;
-  prevAlive = Object.fromEntries(ps.map(p => [p.id, p.alive]));
-}
-
 function renderTabs() {
   const showDead = !S.alive || S.phase === 'over';
   document.querySelector('[data-tab=dead]').classList.toggle('hidden', !showDead);
@@ -317,10 +318,10 @@ function renderTabs() {
   ['chat', 'log', 'recap'].forEach(x => $('#' + x).classList.toggle('hidden', tab !== x)); $('#deadfeed').classList.toggle('hidden', tab !== 'dead');
 }
 const TIPM = ['', 'Map mode: every night each role acts in turn. Targets 1 district away cost +10 IP, and 2 away need a Long-Range Kit.', 'Your turn! Investigate someone. The same district is free, next door costs 10 IP.', 'Day: click a district on the map, then press Move here. You can move once a day, and adjacent districts are free.', 'Nice move! Now open the 🛒 Market and buy Kevlar Body Armor. It saves you from one night attack.', 'Armor ready! Each night districts pay IP to the faction with the most players inside. Chat, then vote.', 'Map tutorial complete! Create a room and tick Metropolitan mode to play with friends.'];
-function tutM() { if (!S.tutorial || !S.metro) return 0; if (S.phase === 'over') return 6; if (S.phase === 'night') return S.turn === S.role ? 2 : 1; return S.kevlar ? 5 : S.moved ? 4 : 3; }
+function tutM() { if (!S.tutorial || !S.metro) return 0; if (S.phase === 'over') return 6; if (S.phase === 'night') return S.turn === myGrp() ? 2 : 1; return S.kevlar ? 5 : S.moved ? 4 : 3; }
 function renderTip() {
   const el = $('#tip'); if (!S.tutorial) return el.classList.add('hidden');
-  const mine = S.turn === S.role;
+  const mine = S.turn === myGrp();
   el.textContent = S.metro ? TIPM[tutM()] : S.phase === 'over' ? t('tip4') : S.phase === 'night' ? (mine ? t('tip2') : t('tip1')) : t('tip3');
   el.classList.remove('hidden');
 }
@@ -345,37 +346,45 @@ function renderSettings() {
   const el = $('#settings'), s = S.set;
   if (!S.isHost) {
     const on = ks => ks.filter(k => k === 'lovers' ? s.lovers : s.roles[k]).map(nm).join(', ') || '-';
-    el.innerHTML = `<div class="tag">Host settings</div><div>${s.night}s/turn, ${s.day}s day, Mafia ${s.mafia || 'auto'}, bots: ${s.botLevel}.<br>${t('rExtra')}: ${on(BASIC)}.<br>${t('rUnique')}: ${on([...UNIQUE, 'lovers'])}.</div>`;
+    el.innerHTML = `<div class="tag">Host settings</div><div><b>Mode: ${modeName(s.mode)}</b> · ${s.night}s/turn, ${s.day}s day, bot skill: ${{ easy: 'Beginner', normal: 'Intermediate', hard: 'Expert' }[s.botLevel]}.<br>${t('rExtra')}: ${on(BASIC)}.<br>${t('rUnique')}: ${on([...UNIQUE, 'lovers'])}.</div>`;
     return;
   }
-  if (el.contains(document.activeElement)) return;
+  if (el.contains(document.activeElement) && document.activeElement.tagName !== 'BUTTON') return;
   const num = (n, l, v) => `<label>${l}<input type="number" name="${n}" value="${v}"></label>`;
   const chk = (n, l, v) => `<label><input type="checkbox" name="${n}" ${v ? 'checked' : ''}>${l}</label>`;
-  el.innerHTML = `<h3>Game</h3>${num('night', 'Seconds per night turn', s.night)}${num('day', 'Day length (seconds)', s.day)}${num('mafia', 'Mafia count (0 = automatic)', s.mafia)}
-    <label>Bot difficulty<select name="botLevel">${['easy', 'normal', 'hard'].map(l => `<option ${s.botLevel === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    <div class="chk">${chk('reveal', 'Reveal role on death', s.reveal)}${chk('lastWords', 'Last words', s.lastWords)}${chk('events', 'Random events', s.events)}${chk('anon', 'Anonymous voting', s.anon)}${chk('filter', 'Profanity filter', s.filter)}${chk('metro', 'Metropolitan mode (map + IP)', s.metro)}</div><label><span>Smart bot replies (Claude API${S.aiAvail ? '' : ', needs a server key'})</span><input type="checkbox" name="aiBots" ${s.aiBots ? 'checked' : ''} ${S.aiAvail ? '' : 'disabled'}></label>
+  const rchk = k => `<label><span><input type="checkbox" name="${k}" ${s.roles[k] ? 'checked' : ''}> ${nm(k)}</span><button type="button" class="info" data-info="${k}" aria-label="About ${nm(k)}">ℹ️</button></label>`;
+  el.innerHTML = `<h3>Game mode</h3><div class="modegrid">${MODESD.map(([id, ic, name, d]) => `<button type="button" class="modecard ${s.mode === id ? 'on' : ''}" data-mode="${id}"><b>${ic} ${name}</b><span>${d}</span></button>`).join('')}</div>
+    <h3>Game</h3>${num('night', 'Seconds per night turn', s.night)}${num('day', 'Day length (seconds)', s.day)}${num('mafia', 'Mafia count (0 = automatic)', s.mafia)}
+    <label>Bot skill<select name="botLevel">${[['easy', 'Beginner'], ['normal', 'Intermediate'], ['hard', 'Expert']].map(([v, l]) => `<option value="${v}" ${s.botLevel === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <p class="tag">Beginner: guesses and never bluffs. Intermediate: reacts to mentions, sometimes bluffs, allies hold territory in map modes. Expert: remembers votes and silence, bluffs, and learns how your table plays.</p>
+    <div class="chk">${chk('reveal', 'Reveal role on death', s.reveal)}${chk('lastWords', 'Last words', s.lastWords)}${chk('events', 'Random events', s.events)}${chk('anon', 'Anonymous voting', s.anon)}${chk('filter', 'Profanity filter', s.filter)}${chk('coach', 'Bots explain their thinking after the game', s.coach)}</div>
     <label>Voice chat link<input type="text" name="voice" placeholder="https://meet.google.com/..." value="${esc(s.voice)}"></label>
-    <h3>Roles</h3><div class="chk">${BASIC.map(k => chk(k, nm(k), s.roles[k])).join('')}</div>
-    <h3 class="unique">${t('rUnique')}</h3><div class="chk unique">${UNIQUE.map(k => chk(k, nm(k), s.roles[k])).join('')}${chk('lovers', 'Lovers', s.lovers)}</div>`;
+    <h3>Roles</h3><div class="chk">${BASIC.map(rchk).join('')}</div>
+    <h3 class="unique">${t('rUnique')}</h3><div class="chk unique">${UNIQUE.map(rchk).join('')}${chk('lovers', 'Lovers', s.lovers)}</div>`;
+  el.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => sendSettings({ mode: b.dataset.mode }));
+  el.querySelectorAll('[data-info]').forEach(b => b.onclick = e => { e.preventDefault(); openRoleInfo(b.dataset.info); });
 }
-$('#settings').onchange = () => {
+function sendSettings(over = {}) {
   if (!S?.isHost) return;
   const g = n => $('#settings').querySelector(`[name=${n}]`), roles = {};
   [...BASIC, ...UNIQUE].forEach(k => roles[k] = g(k).checked);
-  socket.emit('settings', { night: g('night').value, day: g('day').value, mafia: g('mafia').value, voice: g('voice').value, botLevel: g('botLevel').value, roles,
-    ...Object.fromEntries(['reveal', 'lastWords', 'events', 'anon', 'filter', 'lovers', 'metro', 'aiBots'].map(k => [k, g(k).checked])) });
-};
+  socket.emit('settings', { night: g('night').value, day: g('day').value, mafia: g('mafia').value, voice: g('voice').value, botLevel: g('botLevel').value, mode: S.set.mode, roles,
+    ...Object.fromEntries(['reveal', 'lastWords', 'events', 'anon', 'filter', 'lovers', 'coach'].map(k => [k, g(k).checked])), ...over });
+}
+$('#settings').onchange = () => sendSettings();
 
 // ---------- gameplay ----------
 function actions() {
   if (!S.alive || S.spectator) return [];
   const d = S.done, f = d.fin, r = S.role, A = (type, ok) => ({ type, label: t('a_' + type.replace('inspect', 'inspect').replace('witchsave', 'save').replace('witchpoison', 'poison').replace('sk', 'kill')), ok });
   if (S.phase === 'day') return S.silenced === S.me ? [] : [{ type: 'vote', label: t('vote'), ok: p => p.id !== S.me }];
-  if (S.phase !== 'night' || S.turn !== (isM(r) ? 'mafia' : r)) return [];
+  if (S.phase !== 'night' || S.turn !== myGrp()) return [];
   const out = [], other = p => p.id !== S.me;
   if (isM(r)) out.push(A('kill', p => !isM(p.role)));
   if (r === 'silencer' && !f.silencer) out.push(A('silence', p => !isM(p.role)));
   if (r === 'jailer' && !f.jailer && !S.jailee) out.push(A('jail', other));
+  if (r === 'pirate' && !f.pirate) out.push(A('duel', other));
+  if (r === 'plaguebearer' && !f.plaguebearer) out.push(A('infect', other));
   if (r === 'doctor' && !d.heal) out.push(A('heal', () => true));
   if (r === 'bodyguard' && !d.guard) out.push(A('guard', other));
   if (r === 'escort' && !d.block) out.push(A('block', other));
@@ -387,7 +396,7 @@ function actions() {
 }
 function canHold() {
   const f = S.done.fin, r = S.role;
-  return S.alive && S.phase === 'night' && S.turn === (isM(r) ? 'mafia' : r) && ((r === 'vigilante' && S.shots > 0 && !f.vigilante) || (r === 'witch' && !f.witch && (S.potions.save + S.potions.poison > 0)) || (r === 'serialkiller' && !f.serialkiller) || (r === 'silencer' && !f.silencer) || (r === 'jailer' && !f.jailer && !S.jailee));
+  return S.alive && S.phase === 'night' && S.turn === myGrp() && ((r === 'vigilante' && S.shots > 0 && !f.vigilante) || (r === 'witch' && !f.witch && (S.potions.save + S.potions.poison > 0)) || (r === 'serialkiller' && !f.serialkiller) || (r === 'silencer' && !f.silencer) || (r === 'jailer' && !f.jailer && !S.jailee) || (r === 'pirate' && !f.pirate) || (r === 'survivor' && !f.survivor) || (r === 'plaguebearer' && !f.plaguebearer));
 }
 
 // ---------- metropolitan map + market (English only) ----------
@@ -438,9 +447,9 @@ function renderMetro() {
   $('#shopBtn').onclick = openShop; $('#shopBtn').classList.toggle('pulse', step === 4);
   document.querySelectorAll('#map .node').forEach(n => {
     const d = n.dataset.d;
-    n.classList.toggle('me', S.pos === d); n.classList.toggle('sel', selDist === d); n.classList.toggle('sab', !!S.sab[d]);
+    n.classList.toggle('me', S.pos === d); n.classList.toggle('sel', selDist === d); n.classList.toggle('sab', !!S.sab[d]); n.classList.toggle('danger', (S.danger || []).includes(d));
     n.classList.toggle('pulse', step === 3 && ddist(S.pos, d) === 1 && !S.moved);
-    n.querySelector('.ld').textContent = (S.leads[d] ? '★ you lead' : '') + (S.sab[d] ? ' ⚠ sabotaged' : '');
+    n.querySelector('.ld').textContent = (S.leads[d] ? '★ you lead' : '') + (S.sab[d] ? ' ⚠ sabotaged' : '') + ((S.danger || []).includes(d) ? ' ☠ collapsing' : '');
   });
   const groups = {}, keep = new Set(), toks = $('#toks');
   S.players.filter(p => p.pos && p.alive && !p.spectator).forEach(p => (groups[p.pos] = groups[p.pos] || []).push(p));
@@ -468,9 +477,9 @@ function renderMetro() {
 }
 function renderBanner() {
   const b = $('#banner'), lwName = S.players.find(p => p.id === S.lw)?.name, living = S.players.filter(p => p.alive && !p.spectator).length;
-  const mine = S.turn === (isM(S.role) ? 'mafia' : S.role);
+  const mine = S.turn === myGrp();
   let x;
-  if (S.phase === 'over') x = { town: t('winTown'), mafia: t('winMafia'), jester: t('winJester'), serialkiller: t('winSK') }[S.winner] + (S.awards.length ? t('seeRecap') : '');
+  if (S.phase === 'over') x = { town: t('winTown'), mafia: t('winMafia'), jester: t('winJester'), serialkiller: t('winSK'), pirate: t('winPirate'), plague: t('winPlague'), red: t('winRed'), blue: t('winBlue') }[S.winner] + (S.awards.length ? t('seeRecap') : '');
   else if (S.paused) x = t('paused');
   else if (S.spectator) x = t('bSpec');
   else if (S.phase === 'lastwords') x = S.lw === S.me ? t('bLwMe') : t('bLwOther', lwName);
@@ -481,6 +490,8 @@ function renderBanner() {
   if (S.phase === 'night' && S.event === 'fullmoon') x += t('fullmoon');
   if (S.phase === 'day' && S.event === 'blackout') x += t('blackout');
   if (S.lover && S.alive) x += t('lover', S.lover);
+  if (S.team) x += ` You are on the ${S.team} team: your Mafia attack the rival team. Lose all your Mafia and you lose.`;
+  if (S.duelFor) x = '⚔️ A Pirate challenges you to a duel! Pick your move before time runs out.';
   const note = S.notes.at(-1); if (note && S.role === 'detective') x += '  ' + note;
   if (S.jailed) x = '⛓️ You are in jail tonight. You cannot use your power. You can talk privately with the Jailer.';
   if (S.jailee) x += ' Prisoner: ' + (S.players.find(p => p.id === S.jailee)?.name || '?') + '.';
@@ -488,6 +499,12 @@ function renderBanner() {
   if (S.jailee && S.exec > 0 && S.phase === 'night') b.innerHTML += ` <button id="exec" class="danger">Execute prisoner (${S.exec} left)</button>`;
   if (S.alive && S.phase === 'day' && !S.paused && !S.spectator) b.innerHTML += ' <button id="pollBtn">📊 Poll</button>';
   $('#exec') && ($('#exec').onclick = () => { if (confirm('Execute the prisoner at dawn?')) socket.emit('act', { type: 'execute' }); });
+  if (S.duelFor) b.innerHTML += MOVEL.map(([k, l]) => ` <button data-dm="${k}">${l}</button>`).join('');
+  if (S.role === 'survivor' && S.alive && S.phase === 'night' && S.turn === 'survivor' && S.vests > 0 && !S.done.fin.survivor) b.innerHTML += ` <button id="vest">🦺 Wear vest (${S.vests} left)</button>`;
+  if (S.phase === 'day' && papers[S.day]) b.innerHTML += ' <button id="paperBtn2">📰 Paper</button>';
+  document.querySelectorAll('[data-dm]').forEach(e => e.onclick = () => socket.emit('act', { type: 'dmove', move: e.dataset.dm }));
+  $('#vest') && ($('#vest').onclick = () => socket.emit('act', { type: 'vest' }));
+  $('#paperBtn2') && ($('#paperBtn2').onclick = () => openPaper(S.day));
   if (canHold()) b.innerHTML += ` <button id="hold">${t('hold')}</button>`;
   if (S.alive && S.phase === 'day' && !S.paused) b.innerHTML += ` <button id="skipday">${t('skipday', S.skipN, living)}</button>`;
   if (S.isHost && S.phase === 'over') b.innerHTML += ` <button id="rematch" class="primary">${t('rematch')}</button> <button id="again">${t('backLobby')}</button>`;
@@ -515,12 +532,13 @@ function renderPlayers() {
   $('#players').innerHTML = S.players.filter(p => !p.spectator).map(p => {
     const mine = acts.filter(a => p.alive && a.ok(p));
     const tag = p.role ? `<span class="tag ${isM(p.role) ? 'mafia' : ''}">${portrait(p.role, 18)} ${nm(p.role)}</span>` : '';
+    const extra = (S.mode === 'mystery' && p.look ? `<span class="tag">👤 ${p.look.hair} hair · ${p.look.coat} coat · ${p.look.item}</span>` : '') + (p.victim ? '<span class="tag">☠️ victim</span>' : '') + (S.mode === 'team' && p.team ? `<span class="tag team-${p.team}">${p.team === 'red' ? '🟥' : '🟦'} ${p.team}</span>` : '') + ((S.sickIds || []).includes(p.id) ? '<span class="tag">🦠 infected</span>' : '');
     const flags = (S.silenced === p.id ? `<span class="tag">${t('silencedTag')}</span>` : '') + (p.muted ? `<span class="tag">${t('mutedTag')}</span>` : '');
     const btns = mine.map(a => `<button data-id="${p.id}" data-type="${a.type}">${a.type === 'vote' ? '🗳️ ' : ''}${a.label}</button>`).join('') + (canWhisper && p.alive && p.id !== S.me ? `<button data-w="${p.id}" class="ghost">${t('whisper')}</button>` : '');
     const mod = p.id !== S.me && !p.bot ? `<button class="mini" data-mute="${esc(p.name)}" title="Mute for me">${mutedNames.has(p.name) ? '🔈' : '🔇'}</button>` + (S.isHost ? `<button class="mini hm" data-hmute="${p.id}" title="Mute for everyone">🚫</button>` : `<button class="mini hm" data-report="${p.id}" title="Report">⚑</button>`) : '';
-    return `<div class="pcard ${p.alive ? '' : 'dead'} ${pick === p.id ? 'picked' : ''}" data-yv="${t('yourvote')}"><span class="n">${avatar(p)}${esc(p.name)}${p.connected ? '' : ' ⚠'}${mod}</span>${tag}${S.metro && p.pos ? `<span class="tag">📍 ${DN[p.pos]}</span>` : ''}${flags}<div class="acts">${btns}</div></div>`;
+    return `<div class="pcard ${p.alive ? '' : 'dead'} ${pick === p.id ? 'picked' : ''}" data-yv="${t('yourvote')}"><span class="n">${avatar(p)}${esc(p.name)}${p.connected ? '' : ' ⚠'}${mod}</span>${tag}${S.metro && p.pos ? `<span class="tag">📍 ${DN[p.pos]}</span>` : ''}${extra}${flags}<div class="acts">${btns}</div></div>`;
   }).join('');
-  document.querySelectorAll('.pcard [data-type]').forEach(b => b.onclick = () => socket.emit('act', { type: b.dataset.type, target: b.dataset.id }));
+  document.querySelectorAll('.pcard [data-type]').forEach(b => b.onclick = () => { if (b.dataset.type === 'duel') choose('Pick your duel move', MOVEL, v => socket.emit('act', { type: 'duel', target: b.dataset.id, move: v })); else socket.emit('act', { type: b.dataset.type, target: b.dataset.id }); });
   document.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { const v = prompt(t('whisperQ')); if (v) socket.emit('whisper', { to: b.dataset.w, text: v }); });
   document.querySelectorAll('[data-mute]').forEach(b => b.onclick = () => { const n = b.dataset.mute; mutedNames.has(n) ? mutedNames.delete(n) : mutedNames.add(n); localStorage.mutedNames = JSON.stringify([...mutedNames]); render(); });
   document.querySelectorAll('[data-hmute]').forEach(b => b.onclick = () => socket.emit('mute', b.dataset.hmute));
@@ -624,3 +642,117 @@ socket.on('disconnect', () => $('#conn').classList.remove('hidden'));
 socket.on('connect', () => $('#conn').classList.add('hidden'));
 $('#name').onkeydown = $('#code').onkeydown = e => { if (e.key === 'Enter') ($('#code').value ? $('#join') : $('#create')).click(); };
 [['name', 'Your name'], ['pw', 'Room password'], ['code', 'Room code'], ['msg', 'Chat message']].forEach(([i, l]) => $('#' + i).setAttribute('aria-label', l));
+
+// ---------- game modes, role info, alignment ----------
+const MODESD = [
+  ['classic', '🎭', 'Classic', 'The original: Town against the Mafia.'],
+  ['metro', '🏙️', 'Metropolitan', 'A map of five districts with IP, a Market, movement and control bonuses.'],
+  ['royale', '🌋', 'Battle Royale', 'Map mode where one more district collapses every day. Stay in the safe zone. Best with 8 to 15 players (5 minimum).'],
+  ['team', '🟥', 'Team Battle', 'Two teams, each with its own hidden Mafia who attack the rival team. Lose all your Mafia and you lose. 6+ players.'],
+  ['coop', '🤝', 'Co-op Mystery', 'Everyone is Town. Hidden AI Mafia join the table and play differently each game. 2+ players.'],
+  ['mystery', '🔎', 'Murder Mystery', 'A body is found at the start and a true clue about the killer appears each day. 5+ players.'],
+];
+const modeName = id => (MODESD.find(m => m[0] === id) || MODESD[0])[2];
+const ALIGN = { bad: ['mafia', 'godfather', 'silencer'], neutral: ['jester', 'serialkiller', 'survivor', 'pirate', 'plaguebearer'] };
+const alignOf = k => (ALIGN.bad.includes(k) ? 'bad' : ALIGN.neutral.includes(k) ? 'neutral' : 'good');
+const BADGE = { good: ['Good', '#2ecc71'], bad: ['Bad', '#ef4b57'], neutral: ['Neutral', '#f0b95a'] };
+const WINS = { jester: 'Wins by getting lynched.', serialkiller: 'Wins as the last one standing.', survivor: 'Wins by being alive when the game ends, even if their side loses.', pirate: 'Wins by winning two duels and staying alive.', plaguebearer: 'Wins by infecting every living player. All the infected win with them.', good: 'Wins with the Town: eliminate all Mafia and other threats.', bad: 'Wins with the Mafia: equal or outnumber everyone else.' };
+const badge = k => `<span class="badge" style="background:${BADGE[alignOf(k)][1]}">${BADGE[alignOf(k)][0]}</span>`;
+function openRoleInfo(k) {
+  $('#rulesbody').innerHTML = `<div class="rinfo">${portrait(k, 76)}<div><h2>${esc(nm(k))}</h2>${badge(k)}</div></div><p>${esc(desc(k))}</p><p class="tag">${esc(WINS[k] || WINS[alignOf(k)])}</p>`;
+  if (!$('#rules').open) $('#rules').showModal();
+}
+const MOVEL = [['strike', '⚔️ Strike (beats Trick)'], ['trick', '🎭 Trick (beats Guard)'], ['guard', '🛡️ Guard (beats Strike)']];
+
+// ---------- morning results card + daily newspaper ----------
+const papers = {};
+const VERB = { killed: 'was killed', shot: 'was shot', poisoned: 'was poisoned', executed: 'was executed', duel: 'died in a duel', guard: 'died protecting someone', heart: 'died of a broken heart', collapse: 'was caught in a collapse', lynched: 'was lynched', left: 'left the game' };
+function compileMorning(lines) {
+  const R = { deaths: [], saves: [], sil: [], warn: [], ev: [], clues: [] };
+  lines.forEach(x => {
+    const m = x.match(/^(.+?) was (killed|lynched|shot|poisoned|overcome|removed|executed|caught)[^.]*\.(?: They were (\w+)\.)?/);
+    if (m) R.deaths.push({ name: m[1], kind: KIND(x), role: m[3] });
+    else if (/was attacked but/.test(x)) R.saves.push(x);
+    else if (/was silenced/.test(x)) R.sil.push(x);
+    else if (/Zone warning/.test(x)) R.warn.push(x);
+    else if (/New clue/.test(x)) R.clues.push(x.replace('New clue: ', ''));
+    else if (/Subpoena|full moon|storm|blackout/i.test(x)) R.ev.push(x);
+  });
+  return R;
+}
+function showMorning(day, lines) {
+  const R = compileMorning(lines); papers[day] = R;
+  const rows = [...R.deaths.map(d => `<div class="rline">☠️ <b>${esc(d.name)}</b> ${VERB[d.kind] || 'died'}${d.role ? ` · ${portrait(d.role, 18)} ${esc(nm(d.role))}` : ''}</div>`), ...R.saves.map(x => `<div class="rline">🛡️ ${esc(x)}</div>`), ...R.sil.map(x => `<div class="rline">🤐 ${esc(x)}</div>`), ...R.warn.map(x => `<div class="rline">⚠️ ${esc(x)}</div>`), ...R.clues.map(x => `<div class="rline">🔎 ${esc(x)}</div>`), ...R.ev.map(x => `<div class="rline">🌗 ${esc(x)}</div>`)];
+  if (!R.deaths.length && !R.saves.length) rows.unshift('<div class="rline">🕊️ A quiet night. Nobody died.</div>');
+  const el = $('#results'); el.innerHTML = `<h3>☀️ Morning ${day}</h3>${rows.join('')}<div class="row"><button id="rpaper" class="primary">📰 Read the paper</button><button id="rclose">Close</button></div>`;
+  el.classList.remove('hidden');
+  $('#rclose').onclick = () => el.classList.add('hidden'); $('#rpaper').onclick = () => { el.classList.add('hidden'); openPaper(day); };
+  clearTimeout(showMorning.t); showMorning.t = setTimeout(() => el.classList.add('hidden'), 15000);
+}
+const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const HEAD = {
+  killed: ['{n} FOUND DEAD; TOWN "DEEPLY CONCERNED," SAYS EVERYONE', 'LOCAL RESIDENT {n} NO LONGER LOCAL, NOR RESIDENT', '{n} DEAD. POLICE BLAME "FOUL PLAY" OR "BAD LUCK"', 'BREAKING: {n} HAS LEFT THE CHAT (PERMANENTLY)'],
+  shot: ['{n} SHOT BY MYSTERY VIGILANTE; NEIGHBORS SPLIT ON "FAIR ENOUGH"', 'GUNFIRE AT DAWN: {n} DOWN, ALIBIS UP'],
+  poisoned: ['{n} POISONED; SOUP SALES PLUNGE', 'SUSPICIOUS TEA CLAIMS {n}'],
+  executed: ['{n} EXECUTED BY JAILER; "I HAD A BAD FEELING," HE SAYS', 'NIGHT IN JAIL ENDS BADLY FOR {n}'],
+  duel: ['{n} FALLS IN PIRATE DUEL; WITNESS: "IT WAS MOSTLY ROCK-PAPER-SCISSORS"', 'SWORDS DRAWN, {n} LOSES; HARBOR CLOSED FOR DRAMA'],
+  guard: ['BRAVE BODYGUARD {n} TAKES THE HIT; TIPS UP 300%'],
+  heart: ['{n} DIES OF BROKEN HEART; ROMANCE CRITICS DEVASTATED'],
+  collapse: ['{n} LOST IN COLLAPSE; ARCHITECTS "NOT SURPRISED"'],
+  left: ['{n} LEAVES TOWN; LEAVES NO FORWARDING ADDRESS'],
+  lynched: ['{n} LYNCHED; TOWN CALLS IT "A GROUP DECISION"'],
+  saved: ['MIRACLE SAVE: ATTACK FAILS, VICTIM "JUST HAD A NAP"', 'DOCTORS ARE HEROES (THIS WEEK)', 'DEATH TAKES A HOLIDAY; GOES HOME EMPTY-HANDED'],
+  quiet: ['NOTHING HAPPENED; NEIGHBORS BAFFLED BY PEACE', 'QUIET NIGHT RAISES SUSPICION OF QUIET NIGHT', 'ALL IS WELL; EVERYONE SUSPICIOUSLY WELL RESTED'],
+};
+function paperHTML(day) {
+  const R = papers[day] || { deaths: [], saves: [], sil: [], warn: [], ev: [], clues: [] };
+  const rnd = mulberry(day * 7919 + (S.code || 'X').charCodeAt(0) * 31), P = a => a[Math.floor(rnd() * a.length)];
+  const live = S.players.filter(p => p.alive && !p.spectator).map(p => p.name), who = () => P(live.length ? live : ['A concerned citizen']);
+  const d0 = R.deaths[0], vic = d0 ? esc(d0.name) : '';
+  const main = d0 ? P(HEAD[d0.kind] || HEAD.killed).replace('{n}', esc(d0.name.toUpperCase())) : R.saves.length ? P(HEAD.saved) : P(HEAD.quiet);
+  const lede = d0 ? P([`Residents woke to grim news. ${vic} ${VERB[d0.kind] || 'was found dead'}${d0.role ? ` and was, according to records, a ${esc(nm(d0.role))}` : ''}. Police are "looking into it" with great enthusiasm.`, `The town is in shock after ${vic} ${VERB[d0.kind] || 'died'}. Neighbors describe the victim as "someone who existed."`, `Sources confirm ${vic} ${VERB[d0.kind] || 'died'}. Authorities urge calm, snacks, and slightly more suspicion.`]) : P(['Nothing to report except everyone looking at everyone else. Experts call this "Tuesday."', 'The night passed without incident. Locals are suspicious of how suspiciously fine this is.', 'No crimes were reported. The crime reporter has been reassigned to weather.']);
+  const side = R.deaths.slice(1).map(d => `<li>${P(HEAD[d.kind] || HEAD.killed).replace('{n}', esc(d.name.toUpperCase()))}</li>`).join('') + R.saves.map(() => `<li>${P(HEAD.saved)}</li>`).join('') + R.warn.map(x => `<li>${esc(x)}</li>`).join('');
+  const sky = P(['Weather: 100% chance of suspicion.', 'Weather: cloudy with a chance of accusations.', "Weather: foggy. Much like everyone's alibis.", 'Weather: sunny, ideal for lynching.']);
+  const horo = P(['Gemini: someone you trust is not who they say they are. Also, it is Tuesday.', 'Scorpio: a quiet friend knows more than they say. Vote accordingly.', 'Leo: do not eat anything a stranger offers. Especially soup.', 'Virgo: the stars say "maybe." The stars are no help.']);
+  const ads = P(['FOR SALE: one slightly used alibi. Never lied to.', 'WANTED: honest person. No Mafia need apply (we checked).', 'LOST: my faith in everyone. Reward: new friends.', 'FREE: dramatic final speech. Practice on the town square.']);
+  const quote = `"I saw nothing, heard nothing, and was definitely asleep," says ${esc(who())}.`;
+  return `<div class="paper"><div class="mast">THE DAILY SUSPECT</div><div class="dateline">Morning ${day} · Price: one alibi</div><h1 class="headline">${main}</h1><p class="lede">${lede}</p>${side ? `<ul class="more">${side}</ul>` : ''}<p class="quote">${quote}</p><div class="cols"><div><b>Weather</b><br>${sky}</div><div><b>Horoscope</b><br>${horo}</div><div><b>Classifieds</b><br>${ads}</div></div></div>`;
+}
+function openPaper(day) {
+  const days = Object.keys(papers).map(Number).sort((a, b) => a - b), i = days.indexOf(day);
+  $('#paperbody').innerHTML = paperHTML(day) + `<div class="row"><button id="pprev" ${i > 0 ? '' : 'disabled'}>◀ Earlier</button><button id="pnext" ${i < days.length - 1 ? '' : 'disabled'}>Later ▶</button></div>`;
+  $('#pprev').onclick = () => openPaper(days[i - 1]); $('#pnext').onclick = () => openPaper(days[i + 1]);
+  if (!$('#paper').open) $('#paper').showModal();
+}
+
+// ---------- murder mystery case file ----------
+function renderClues() {
+  const el = $('#clues');
+  if (S.mode !== 'mystery') return el.classList.add('hidden');
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="bh"><span>🔎 Case file</span><span class="tag">${S.players.filter(p => p.victim).map(p => 'Victim: ' + esc(p.name)).join('')}</span></div>` + (S.clues.map(c => `<div class="rline">Day ${c.day}: ${esc(c.text)}</div>`).join('') || '<div class="tag">No clues yet.</div>') + "<div class=\"tag\">Every player's look is shown on their card. Use the clues to find the killer.</div>";
+}
+
+// ---------- town scene: houses, lamps, trees, sky ----------
+function renderScene() {
+  const ps = S.players.filter(p => !p.spectator), night = S.phase === 'night', W = Math.max(360, ps.length * 66 + 56);
+  const hue = n => { let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  const houses = ps.map((p, i) => {
+    const x = 30 + i * 66, h = hue(p.name), v = h % 3, dead = !p.alive, out = dead && prevAlive[p.id] === true;
+    const wall = `hsl(${h} 26% ${night ? 17 : 42}%)`, roof = `hsl(${(h + 35) % 360} 32% ${night ? 12 : 27}%)`;
+    const win = (wx, wy, ww = 11, hh = 11) => `<rect class="wframe" x="${wx - 1.5}" y="${wy - 1.5}" width="${ww + 3}" height="${hh + 3}" rx="2"/><rect class="win ${out ? 'out' : dead ? 'off' : ''}" x="${wx}" y="${wy}" width="${ww}" height="${hh}" rx="1.5"/>${dead ? `<path class="board" d="M${wx} ${wy + 3}h${ww}M${wx} ${wy + 8}h${ww}"/>` : `<path class="pane" d="M${wx + ww / 2} ${wy}v${hh}M${wx} ${wy + hh / 2}h${ww}"/>`}`;
+    let body;
+    if (v === 0) body = `<rect x="${x}" y="52" width="48" height="30" style="fill:${wall}"/><polygon points="${x - 5},52 ${x + 24},28 ${x + 53},52" style="fill:${roof}"/><rect x="${x + 36}" y="31" width="7" height="14" style="fill:${roof}"/>${dead ? '' : `<circle class="smoke" cx="${x + 39.5}" cy="27" r="3"/><circle class="smoke s2" cx="${x + 41}" cy="22" r="2.5"/>`}${win(x + 6, 58)}${win(x + 31, 58)}<rect class="door" x="${x + 20}" y="66" width="9" height="16" rx="1.5"/>`;
+    else if (v === 1) body = `<rect x="${x + 2}" y="38" width="44" height="44" style="fill:${wall}"/><rect x="${x - 1}" y="34" width="50" height="6" rx="1" style="fill:${roof}"/>${win(x + 8, 45)}${win(x + 29, 45)}${win(x + 8, 62, 11, 10)}<rect class="door" x="${x + 29}" y="66" width="10" height="16" rx="1.5"/>`;
+    else body = `<rect x="${x - 2}" y="52" width="52" height="30" style="fill:${wall}"/><rect x="${x - 4}" y="46" width="56" height="7" rx="1" style="fill:${roof}"/><path class="awning" d="M${x - 4} 53h56l-5 9H${x + 1}z"/>${win(x + 4, 66, 18, 11)}<rect class="door" x="${x + 32}" y="66" width="10" height="16" rx="1.5"/>`;
+    const stone = dead ? `<g class="tomb"><path d="M${x + 36} 82v-9a5 5 0 0 1 10 0v9z"/><path d="M${x + 41} 74v5M${x + 39} 76h4"/></g>` : '';
+    const you = p.id === S.me ? `<path class="you" d="M${x + 24} 17l-5-8h10z"/>` : '';
+    return `<g class="hs ${dead ? 'dead' : ''}"><title>${esc(p.name)}</title>${body}${stone}${you}<text class="hn" x="${x + 24}" y="95" text-anchor="middle">${esc(p.name.slice(0, 9))}</text></g>`;
+  }).join('');
+  const lamps = ps.map((p, i) => (i % 2 ? `<g class="lamp"><line x1="${20 + i * 66}" y1="82" x2="${20 + i * 66}" y2="63"/><circle cx="${20 + i * 66}" cy="61" r="${night ? 5 : 3}"/></g>` : '')).join('');
+  const tree = x => `<g class="tree"><rect x="${x}" y="68" width="4" height="14"/><circle cx="${x + 2}" cy="64" r="9"/></g>`;
+  const sky = night ? Array.from({ length: Math.round(W / 40) }, (_, i) => `<circle class="star" cx="${(i * 83 + 17) % W}" cy="${(i * 37) % 36 + 6}" r="${i % 3 ? 0.8 : 1.4}"/>`).join('') : `<ellipse class="cloud" cx="${W * 0.25}" cy="18" rx="24" ry="7"/><ellipse class="cloud c2" cx="${W * 0.6}" cy="30" rx="30" ry="8"/>`;
+  const orb = night ? `<circle class="orb" cx="${W - 42}" cy="22" r="13"/><circle cx="${W - 46}" cy="19" r="2.4" class="crater"/><circle cx="${W - 38}" cy="26" r="1.8" class="crater"/>` : `<g class="rays" style="transform-origin:${W - 42}px 24px">${[0, 45, 90, 135, 180, 225, 270, 315].map(a => `<line x1="${W - 42}" y1="6" x2="${W - 42}" y2="1" transform="rotate(${a} ${W - 42} 24)"/>`).join('')}</g><circle class="orb" cx="${W - 42}" cy="24" r="11"/>`;
+  $('#scene').innerHTML = `<svg viewBox="0 0 ${W} 100" preserveAspectRatio="xMidYMax meet" role="img" aria-label="The town">${sky}${orb}<path class="hills" d="M0 74Q${W * 0.2} 48 ${W * 0.4} 68T${W * 0.8} 62 ${W} 70V100H0z"/>${tree(10)}${tree(W - 18)}${houses}${lamps}<rect class="ground" x="0" y="82" width="${W}" height="18"/><path class="road" d="M0 90H${W}"/></svg>`;
+  prevAlive = Object.fromEntries(ps.map(p => [p.id, p.alive]));
+}

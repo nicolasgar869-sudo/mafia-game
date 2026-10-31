@@ -206,3 +206,43 @@ body.shake #game,body.shake .screen{animation:shk .6s}
 .stk{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.stk button{font-size:1.4rem;padding:4px}
 .msg.big{font-size:2rem;line-height:1.2}.msg.big b{font-size:.8rem;display:block}
 @media (prefers-contrast:more){:root{--line:rgba(255,255,255,.35)}body.night{--line:rgba(190,205,255,.5)}.tag,.sub{color:var(--ink)}}
+/* ---- v8: town scene, modes, role info, results card, newspaper ---- */
+#scene{height:132px;overflow:hidden}
+#scene svg{width:100%;height:100%;display:block}
+.hs .wframe{fill:#2b2230}.hs .win{fill:var(--wlit);filter:drop-shadow(0 0 2.5px var(--wlit))}.hs .win.off{fill:var(--wdark);filter:none}
+.hs .win.out{animation:out 1.6s forwards}.hs .pane{stroke:#0006;stroke-width:1}.hs .board{stroke:#7a5c3a;stroke-width:2}
+.door{fill:#4a3222}.awning{fill:#c0392b}.hn{font:600 8px 'Hanken Grotesk',sans-serif;fill:var(--ink);opacity:.85}.you{fill:var(--accent)}
+.hs.dead{filter:saturate(.35) brightness(.78)}.tomb path{fill:#8a8f98;stroke:#555;stroke-width:1}
+.smoke{fill:#fff;opacity:0;animation:smoke 3.2s ease-out infinite}.smoke.s2{animation-delay:1.4s}
+@keyframes smoke{0%{opacity:.5;transform:translateY(0) scale(.6)}100%{opacity:0;transform:translateY(-14px) scale(1.6)}}
+.lamp line{stroke:#555;stroke-width:2}.lamp circle{fill:#ffd27a;opacity:.95;filter:drop-shadow(0 0 5px #ffd27a)}
+.tree rect{fill:#4a3222}.tree circle{fill:#2f6b3a}body.night .tree circle{fill:#14341c}
+.hills{fill:rgba(0,0,0,.2)}.ground{fill:var(--roof)}.road{stroke:rgba(255,255,255,.15);stroke-width:2;stroke-dasharray:8 8;fill:none}
+.star{fill:#fff;opacity:.85;animation:tw 3s ease-in-out infinite}.star:nth-child(odd){animation-delay:1.2s}
+@keyframes tw{50%{opacity:.3}}
+.cloud{fill:#fff;opacity:.55;animation:cl 28s linear infinite alternate}.cloud.c2{animation-duration:40s}
+@keyframes cl{from{transform:translateX(-25px)}to{transform:translateX(35px)}}
+.crater{fill:#c9cfe8}.rays line{stroke:#ffd666;stroke-width:2;stroke-linecap:round}.rays{animation:spin 40s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.modegrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modecard{text-align:left;display:flex;flex-direction:column;gap:4px;padding:10px;font-size:.85rem}
+.modecard b{font-family:Fraunces,serif;font-size:1rem}.modecard span{color:var(--dim);font-size:.78rem;line-height:1.3}
+.modecard.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 18px -6px var(--accent2);background:rgba(240,185,90,.1)}
+.settings .chk label{justify-content:space-between}
+button.info{padding:0 6px;background:none;border:0;font-size:.95rem;line-height:1}
+.badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.72rem;font-weight:700;color:#14110d}
+.rinfo{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+#results{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(440px,92vw);z-index:18;background:var(--bg2);border:1px solid var(--accent);border-radius:16px;padding:12px 16px;box-shadow:0 14px 40px #000a;animation:rin .5s}
+@keyframes rin{from{opacity:0;transform:translate(-50%,-24px)}}
+#results h3{margin:0 0 6px;color:var(--accent)}.rline{padding:3px 0;border-bottom:1px dashed var(--line);font-size:.95rem}
+#results .row{margin-top:8px}
+dialog#paper{max-width:640px;background:#ece3cf;color:#1c1a16}dialog#paper button{color:#1c1a16}
+.paper{font-family:Georgia,'Times New Roman',serif;border:3px double #3a3326;padding:14px 16px}
+.mast{font:800 clamp(1.5rem,6vw,2.3rem)/1 Fraunces,Georgia,serif;text-align:center;letter-spacing:.06em;border-bottom:2px solid #3a3326;padding-bottom:6px}
+.dateline{text-align:center;font-size:.8rem;border-bottom:1px solid #3a3326;padding:3px 0;margin-bottom:8px}
+.headline{font:800 clamp(1.3rem,5vw,1.9rem)/1.1 Fraunces,Georgia,serif;margin:6px 0;text-align:center}
+.lede{margin:6px 0;text-align:justify}.more{margin:6px 0;padding-left:18px;font-weight:700;font-size:.9rem}.quote{font-style:italic;border-left:3px solid #3a3326;padding-left:8px}
+.paper .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:.78rem;border-top:1px solid #3a3326;padding-top:6px}
+@media (max-width:520px){.paper .cols{grid-template-columns:1fr}}
+.node.danger rect{stroke:#ef4b57;stroke-dasharray:6 4;fill:rgba(239,75,87,.18)}
+.tag.team-red{color:#ff7b7b}.tag.team-blue{color:#7bb0ff}

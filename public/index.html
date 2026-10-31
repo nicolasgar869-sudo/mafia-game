@@ -53,6 +53,7 @@
       <div id="banner" aria-live="polite"></div>
       <div id="tip" class="hidden"></div>
       <section id="metro" class="hidden"><div id="mapbar"></div><div id="map"></div><div id="mapinfo"></div></section>
+      <section id="clues" class="ballot hidden"></section>
       <section id="poll" class="ballot hidden"></section>
       <section id="ballot" class="ballot hidden"></section>
       <section id="players" class="grid"></section>
@@ -78,6 +79,8 @@
 <dialog id="rules"><div id="rulesbody"></div><form method="dialog"><button class="primary">OK</button></form></dialog>
 <div id="reveal" class="hidden"><div class="dfx" id="dfx"></div><div class="rcard"><div class="face front"></div><div class="face back"></div></div></div>
 <div id="deal" class="hidden"><div class="rcard"><div class="face front"></div><div class="face back"></div></div></div>
+<div id="results" class="hidden"></div>
+<dialog id="paper"><div id="paperbody"></div><form method="dialog"><button class="primary">Close paper</button></form></dialog>
 <div id="toast"></div>
 <div id="flash"></div>
 <script src="/socket.io/socket.io.js"></script>
