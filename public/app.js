@@ -7,8 +7,8 @@ let mutedNames = new Set(JSON.parse(localStorage.mutedNames || '[]'));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const show = id => ['home', 'lobby', 'game'].forEach(x => $('#' + x).classList.toggle('hidden', x !== id));
 const MAFIA = ['mafia', 'godfather', 'silencer'], isM = r => MAFIA.includes(r);
-const ICON = { pirate: '🏴‍☠️', survivor: '🦺', plaguebearer: '🦠', jailer: '⛓️', mafia: '🔪', godfather: '🎩', silencer: '🤐', detective: '🔍', doctor: '⚕️', bodyguard: '🛡️', vigilante: '🔫', mayor: '🏛️', jester: '🃏', witch: '🧪', escort: '💃', spy: '🕶️', serialkiller: '🪓', town: '🏠' };
-const BASIC = ['detective', 'doctor', 'vigilante', 'bodyguard', 'mayor', 'jester', 'godfather'], UNIQUE = ['witch', 'escort', 'spy', 'serialkiller', 'silencer', 'jailer', 'pirate', 'survivor', 'plaguebearer'];
+const ICON = { doppelganger: '🪞', pirate: '🏴‍☠️', survivor: '🦺', plaguebearer: '🦠', jailer: '⛓️', mafia: '🔪', godfather: '🎩', silencer: '🤐', detective: '🔍', doctor: '⚕️', bodyguard: '🛡️', vigilante: '🔫', mayor: '🏛️', jester: '🃏', witch: '🧪', escort: '💃', spy: '🕶️', serialkiller: '🪓', town: '🏠' };
+const BASIC = ['detective', 'doctor', 'vigilante', 'bodyguard', 'mayor', 'jester', 'godfather'], UNIQUE = ['witch', 'escort', 'spy', 'serialkiller', 'silencer', 'jailer', 'pirate', 'survivor', 'plaguebearer', 'doppelganger'];
 
 // ---------- languages: [English, Bahasa Melayu, 中文]. Host settings and server log lines stay in English. ----------
 const LANGS = { en: 'English', ms: 'Bahasa Melayu', zh: '中文' }, LI = { en: 0, ms: 1, zh: 2 }, VOICE = { en: 'en-US', ms: 'ms-MY', zh: 'zh-CN' };
@@ -81,6 +81,7 @@ const D = {
   a_love: ['Till Death: you and your lover both survive', 'Hingga Akhir: anda dan kekasih sama-sama hidup', '生死相依：你和恋人都活到最后'], a_unlock: ['Achievement unlocked', 'Pencapaian dibuka', '解锁成就'],
 };
 const R = {   // role names, then descriptions
+  doppelganger: [['Doppelganger', 'Doppelganger', '分身'], ['You have no power yet. When the first player dies, you copy their role and play as it from then on.', 'Anda belum ada kuasa. Apabila pemain pertama mati, anda menyalin peranan mereka dan bermain sebagai peranan itu.', '你一开始没有能力。第一个死亡的玩家出现后，你会复制其身份并以此继续游戏。']],
   pirate: [['Pirate', 'Lanun', '海盗'], ['Challenge a player to a duel each night. Both pick Strike, Trick or Guard. Win two duels to win the game.', 'Cabar seorang pemain berduel setiap malam. Kedua-duanya pilih Strike, Trick atau Guard. Menang dua duel untuk menang permainan.', '每晚向一名玩家发起决斗，双方选择出招（攻击、诡计、防御）。赢得两场决斗即获胜。']],
   survivor: [['Survivor', 'Survivor', '幸存者'], ['Just stay alive. You can wear a bulletproof vest twice to survive a night attack.', 'Hanya perlu terus hidup. Anda boleh memakai jaket kalis peluru dua kali untuk selamat daripada serangan malam.', '只要活下来就行。你可以穿两次防弹衣来抵挡夜间袭击。']],
   plaguebearer: [['Plaguebearer', 'Pembawa Wabak', '瘟疫使者'], ['Infect one player each night. If every living player is infected, you and all the infected win together.', 'Jangkitkan seorang pemain setiap malam. Jika semua pemain hidup dijangkiti, anda dan semua yang dijangkiti menang bersama.', '每晚感染一名玩家。若所有存活玩家都被感染，你和所有感染者一同获胜。']],
@@ -101,7 +102,7 @@ const R = {   // role names, then descriptions
   town: [['Townsperson', 'Penduduk', '平民'], ['Find the Mafia and vote them out.', 'Cari Mafia dan undi mereka keluar.', '找出黑手党并投票淘汰他们。']],
 };
 const t = (k, ...a) => String((D[k] || [k])[LI[lang]] ?? (D[k] || [k])[0]).replace(/\{(\d)\}/g, (_, i) => a[i]);
-const nm = k => { k = String(k).startsWith('mafia_') ? 'mafia' : k; return R[k] ? R[k][0][LI[lang]] : k; }, desc = k => R[k][1][LI[lang]];
+const nm = k => { k = String(k).startsWith('mafia_') ? 'mafia' : k; if (k === 'mafia' && S && S.mode === 'zombie') return 'Zombie'; return R[k] ? R[k][0][LI[lang]] : k; }, desc = k => R[k][1][LI[lang]];
 const myGrp = () => (isM(S.role) ? (S.team ? 'mafia_' + S.team : 'mafia') : S.role);
 function applyI18n() {
   document.documentElement.lang = lang;
@@ -129,13 +130,14 @@ const PR = {
   escort: ['#c0392b', '#f1c9a5', '<path d="M17 30q-2-21 15-21t15 21v11h-5V27H22v14h-5z" fill="#3b2a20"/><path d="M28 33q4 3 8 0" stroke="#d6336c" stroke-width="2" fill="none"/>'],
   spy: ['#2b2f38', '#e8c4a0', '<path d="M14 62l8-18 10 8 10-8 8 18z" fill="#1a1d24"/>' + cap('#222') + '<rect x="21" y="24" width="22" height="5" rx="2" fill="#0b0b0b"/>'],
   serialkiller: ['#2a2018', '#f3f3f3', '<circle cx="27" cy="25" r="2.6" fill="#222"/><circle cx="37" cy="25" r="2.6" fill="#222"/><rect x="29" y="31" width="6" height="6" rx="1" fill="none" stroke="#999"/><path d="M26 19l2 5M38 19l-2 5" stroke="#c0392b" stroke-width="2"/><path d="M48 40l8 12" stroke="#ddd" stroke-width="3"/>'],
+  doppelganger: ['#5b4b8a', '#d9c7e8', '<path d="M19 21q13-15 26 0z" fill="#3a2f5c"/><circle cx="26" cy="26" r="1.8" fill="#fff"/><circle cx="38" cy="26" r="1.8" fill="#fff"/><path d="M32 14v50" stroke="#fff" stroke-opacity=".6" stroke-width="1.2"/><path d="M32 43l18 21H32z" fill="#fff" fill-opacity=".25"/>'],
   pirate: ['#7a1f1f', '#e0b894', '<path d="M15 21q17-20 34 0z" fill="#16161d"/><rect x="15" y="19" width="34" height="3" fill="#16161d"/><circle cx="32" cy="12" r="2.6" fill="#eee"/><path d="M25 10l14 4M39 10l-14 4" stroke="#eee" stroke-width="1"/><circle cx="37" cy="27" r="3.6" fill="#111"/><path d="M33 24L21 17" stroke="#111" stroke-width="1.4"/><circle cx="48" cy="46" r="2" fill="#ffd166"/>'],
   survivor: ['#5b7d3a', '#e0b894', '<path d="M19 21q13-15 26 0z" fill="#f2b705"/><rect x="19" y="19" width="26" height="3" fill="#c98f00"/><rect x="22" y="47" width="20" height="17" fill="#f26b3a"/><path d="M27 47v17M37 47v17" stroke="#fff" stroke-width="2"/>'],
   plaguebearer: ['#3f3f2a', '#b9d77a', '<path d="M16 31q0-23 16-23t16 23l-4 6V25H20v12z" fill="#2c2c1c"/><path d="M32 25l-5 12h10z" fill="#d8c9a0"/><circle cx="26" cy="25" r="2.4" fill="#e8ff9a"/><circle cx="38" cy="25" r="2.4" fill="#e8ff9a"/><circle cx="50" cy="46" r="3" fill="#8bdc4a"/><circle cx="14" cy="50" r="2" fill="#8bdc4a"/>'],
   jailer: ['#334155', '#e0b894', cap('#1e293b') + '<path d="M29 12l3-4 3 4-3 3z" fill="#facc15"/><circle cx="49" cy="46" r="4.5" fill="none" stroke="#e5c07b" stroke-width="2"/><path d="M49 51v8M49 55h4" stroke="#e5c07b" stroke-width="2"/>'],
   town: ['#4a90d9', '#f1c9a5', cap('#e07a2f')],
 };
-const portrait = (role, size = 24) => { const [body, skin, extra] = PR[role] || PR.town; return `<svg class="pt" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true"><rect width="64" height="64" fill="rgba(255,255,255,.07)"/><path d="M6 64c2-15 13-21 26-21s24 6 26 21z" fill="${body}"/><circle cx="32" cy="27" r="13" fill="${skin}"/><circle cx="27" cy="27" r="1.6" fill="#222"/><circle cx="37" cy="27" r="1.6" fill="#222"/><path d="M28 33q4 3 8 0" stroke="#7a3b2e" stroke-width="1.5" fill="none"/>${extra}</svg>`; };
+const portrait = (role, size = 24, style = '') => { const [body, skin, extra] = PR[role] || PR.town; return `<svg class="pt ${style}" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true"><rect width="64" height="64" fill="rgba(255,255,255,.07)"/><path d="M6 64c2-15 13-21 26-21s24 6 26 21z" fill="${body}"/><circle cx="32" cy="27" r="13" fill="${skin}"/><circle cx="27" cy="27" r="1.6" fill="#222"/><circle cx="37" cy="27" r="1.6" fill="#222"/><path d="M28 33q4 3 8 0" stroke="#7a3b2e" stroke-width="1.5" fill="none"/>${extra}</svg>`; };
 const avatar = p => {
   if (!p) return '';
   const fr = p.cos && p.cos.frame ? ' frame-' + p.cos.frame : '';
@@ -247,6 +249,8 @@ socket.on('typing', n => { $('#typing').textContent = n + ' …'; clearTimeout(t
 $('#create').onclick = () => socket.emit('create', creds());
 $('#join').onclick = () => socket.emit('join', { code: $('#code').value, ...creds() });
 $('#tutorial').onclick = () => socket.emit('tutorial', creds());
+$('#tourBtn').onclick = () => socket.emit('create', { ...creds(), tour: true });
+$('#colBtn').onclick = () => openCollection();
 $('#tutorialMap').onclick = () => socket.emit('tutorial', { ...creds(), metro: true });
 ['leaveLobby', 'leaveGame'].forEach(id => $('#' + id).onclick = () => { if (confirm(t('leaveQ'))) socket.emit('leave'); });
 $('#start').onclick = () => socket.emit('start');
@@ -260,7 +264,7 @@ $('#emojis').innerHTML = ['😂', '😱', '🤔', '👀', '🔪', '👍'].map(e 
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => { tab = b.dataset.tab; renderTabs(); renderFeeds(); });
 
 // ---------- state ----------
-socket.on('state', s => { $('#err').textContent = ''; $('#err2').textContent = ''; S = s; sounds(); render(); prev = { phase: S.phase, log: S.log.length, turn: S.turn }; });
+socket.on('state', s => { $('#err').textContent = ''; $('#err2').textContent = ''; S = s; sounds(); render(); prev = { phase: S.phase, log: S.log.length, turn: S.turn, votes: Object.values(S.votes || {}).filter(Boolean).length, role: S.role }; });
 function won() {
   const r = S.role, w = S.winner;
   if (r === 'survivor' && S.alive) return true;                      // the Survivor wins just by living
@@ -272,12 +276,15 @@ function won() {
 }
 function sounds() {
   const fresh = prev.log >= 0 && S.log.length > prev.log ? S.log.slice(prev.log).map(l => l.text) : [];
+  const vc = Object.values(S.votes || {}).filter(Boolean).length;
+  if (S.phase === 'day' && prev.votes !== undefined && vc > prev.votes) votePing(vc);
+  if (prev.role === 'doppelganger' && S.role !== 'doppelganger') { toast('🪞 You copied the first role to die. You are now the ' + nm(S.role) + '!'); vib([120, 60, 120]); }
   const deaths = fresh.filter(x => /was (killed|lynched|shot|poisoned|overcome|removed|executed|caught)|killed protecting|heartbreak/.test(x));
   if (deaths.length) { SFX.death(); vib([500]); queueReveals(deaths); }
   if (prev.phase === 'night' && S.phase === 'day') showMorning(S.day, fresh);
   if (prev.phase !== S.phase) {
     prevCounts = {};
-    if (S.phase === 'night' && S.day === 1 && prev.phase && prev.phase !== 'night' && S.role && !S.spectator) deal();
+    if (S.phase === 'night' && S.day === 1 && prev.phase && prev.phase !== 'night' && S.role && !S.spectator) intro(deal);
     if (S.phase === 'night') trans('to-night'); else if (S.phase === 'day' && prev.phase === 'night') trans('to-day');
     if (S.phase === 'night') { SFX.night(); speak(t('nNight')); }
     else if (S.phase === 'day') { SFX.day(); speak(t('nDay') + ' ' + deaths.map(x => t('nDied', x.split(' was ')[0])).join(' ')); }
@@ -286,7 +293,7 @@ function sounds() {
       SFX.win(); speak(t('nOver')); if (S.role && !S.spectator && won()) confetti(); if (S.role && !S.spectator) vib(won() ? [80, 40, 80, 40, 80, 40, 350] : [350, 120, 350]);
       if (prev.phase && !S.spectator && S.role) {
         const st = JSON.parse(localStorage.stats || '{"g":0,"w":0,"mw":0}'); st.g++; if (won()) { st.w++; if (isM(S.role)) st.mw++; }
-        localStorage.stats = JSON.stringify(st); showStats(); if (!S.tutorial) checkAchievements(st);
+        localStorage.stats = JSON.stringify(st); showStats(); if (!S.tutorial) { checkAchievements(st); recordCollection(); }
       }
     }
   }
@@ -300,13 +307,13 @@ function render() {
   $('#phaseicon').textContent = { night: '🌙', day: '☀️', lastwords: '🕯️', over: '🏁' }[S.phase];
   $('#phase').textContent = (S.phase === 'over' || S.phase === 'lastwords') ? t(S.phase) : `${t(S.phase)} ${S.day}`;
   const r = $('#role');
-  r.innerHTML = S.spectator ? '👀 ' + esc(t('spectating')) : S.alive ? `${portrait(S.role, 26)} ${esc(t('youare', nm(S.role)))}` : `💀 ${esc(t('youdead', nm(S.role)))}`;
+  r.innerHTML = S.spectator ? '👀 ' + esc(t('spectating')) : S.alive ? `${portrait(S.role, 26, cardStyle(S.role))} ${esc(t('youare', nm(S.role)))}` : `💀 ${esc(t('youdead', nm(S.role)))}`;
   r.className = 'role ' + (isM(S.role) ? 'mafia' : '');
   const v = $('#voice'); v.classList.toggle('hidden', !S.set.voice); v.href = S.set.voice || '#';
   const live = ['night', 'day', 'lastwords'].includes(S.phase);
   $('#hostbtns').innerHTML = S.isHost && live ? `<button id="pause">${S.paused ? '▶' : '⏸'}</button><button id="skipphase">⏭</button>` : '';
   $('#pause') && ($('#pause').onclick = () => socket.emit('pause')); $('#skipphase') && ($('#skipphase').onclick = () => socket.emit('skipphase'));
-  renderScene(); renderBanner(); renderTip(); renderMetro(); renderPoll(); renderClues(); renderBallot(); renderPlayers(); renderFeeds(); syncMusic();
+  renderScene(); renderBanner(); renderTip(); renderMetro(); renderPoll(); renderClues(); renderTour(); renderCure(); renderBallot(); renderPlayers(); renderFeeds(); syncMusic();
 }
 
 // night/day skyline: one house per player, windows go dark when a player dies
@@ -330,15 +337,19 @@ function renderTip() {
 function renderLobby() {
   show('lobby'); $('#lcode').textContent = S.code; $('#addbot').classList.toggle('hidden', !S.isHost);
   const PER = { calm: '😌 Calm', paranoid: '😰 Paranoid', quiet: '🤫 Quiet', loud: '📣 Loud accuser' };
-  $('#lplayers').innerHTML = S.players.map(p => `<li><span>${avatar(p)}${esc(p.name)}</span><span class="tag">${p.id === S.me ? t('tYou') + ' ' : ''}${p.id === S.hostId ? t('tHost') + ' ' : ''}${p.bot ? t('tBot') + ' ' : p.connected ? '' : t('tOff')}${p.ready && !p.bot && p.id !== S.hostId ? '✅ ready ' : ''}${S.isHost && p.bot ? `<select data-persona="${p.id}">${Object.entries(PER).map(([k, v]) => `<option value="${k}" ${p.persona === k ? 'selected' : ''}>${v}</option>`).join('')}</select> <button data-botname="${p.id}">✏️</button>` : ''}${S.isHost && p.id !== S.me ? ` <button data-kick="${p.id}">${t('kick')}</button>` : ''}</span></li>`).join('');
+  $('#lplayers').innerHTML = S.players.map(p => `<li><span>${avatar(p)}${esc(p.name)}</span><span class="tag">${p.id === S.me ? t('tYou') + ' ' : ''}${p.id === S.hostId ? t('tHost') + ' ' : ''}${p.bot ? t('tBot') + ' ' : p.connected ? '' : t('tOff')}${p.ready && !p.bot && p.id !== S.hostId ? '✅ ready ' : ''}${S.isHost && p.bot ? `<select data-persona="${p.id}">${Object.entries(PER).map(([k, v]) => `<option value="${k}" ${p.persona === k ? 'selected' : ''}>${v}</option>`).join('')}</select> <select data-theme="${p.id}">${Object.entries(THEMEL).map(([k, v]) => `<option value="${k}" ${p.theme === k ? 'selected' : ''}>${v}</option>`).join('')}</select> <button data-botname="${p.id}">✏️</button>` : ''}${S.isHost && p.id !== S.me ? ` <button data-kick="${p.id}">${t('kick')}</button>` : ''}</span></li>`).join('');
   document.querySelectorAll('[data-kick]').forEach(b => b.onclick = () => socket.emit('kick', b.dataset.kick));
+  document.querySelectorAll('[data-theme]').forEach(e => e.onchange = () => socket.emit('botconfig', { id: e.dataset.theme, theme: e.value }));
   document.querySelectorAll('[data-persona]').forEach(e => e.onchange = () => socket.emit('botconfig', { id: e.dataset.persona, persona: e.value }));
   document.querySelectorAll('[data-botname]').forEach(b => b.onclick = () => { const n = prompt('Bot name:'); if (n) socket.emit('botconfig', { id: b.dataset.botname, name: n }); });
   const me = S.players.find(p => p.id === S.me), waiting = S.players.filter(p => !p.bot && p.connected && p.id !== S.hostId && !p.ready);
   const rb = $('#readyBtn'); rb.classList.toggle('hidden', S.isHost); rb.textContent = me?.ready ? '✅ Ready (tap to undo)' : "I'm ready";
-  const enough = S.players.length >= S.min;
+  document.querySelector('#lobby h2').firstChild.textContent = S.tour ? '🏆 Tournament ' : 'Room ';
+  $('#start').textContent = S.tour ? 'Start tournament' : t('start');
+  const enough = S.players.length >= (S.tour ? 3 : S.min);
   $('#start').classList.toggle('hidden', !S.isHost); $('#start').disabled = !enough || waiting.length > 0;
   $('#lhint').textContent = S.isHost ? (!enough ? t('waitN', S.players.length, S.min) : waiting.length ? 'Waiting for ready: ' + waiting.map(p => p.name).join(', ') : t('readyH')) : t('waitHost');
+  if (S.tour) $('#lhint').textContent = S.isHost ? ($('#lhint').textContent + ' Tables of up to 6 play at once, winners advance, and the last table is the final.') : 'Tournament lobby. The host will start when everyone is ready.';
   renderSettings();
 }
 $('#readyBtn').onclick = () => socket.emit('ready');
@@ -392,6 +403,7 @@ function actions() {
   if (r === 'vigilante' && S.shots > 0 && !f.vigilante) out.push(A('shoot', other));
   if (r === 'serialkiller' && !f.serialkiller) out.push(A('sk', other));
   if (r === 'witch' && !f.witch) { if (S.potions.save) out.push(A('witchsave', () => true)); if (S.potions.poison) out.push(A('witchpoison', other)); }
+  if (S.mode === 'zombie') out.forEach(a => { if (a.type === 'kill') a.label = 'Bite'; if (a.type === 'heal') a.label = 'Cure'; });
   return out;
 }
 function canHold() {
@@ -492,6 +504,8 @@ function renderBanner() {
   if (S.lover && S.alive) x += t('lover', S.lover);
   if (S.team) x += ` You are on the ${S.team} team: your Mafia attack the rival team. Lose all your Mafia and you lose.`;
   if (S.duelFor) x = '⚔️ A Pirate challenges you to a duel! Pick your move before time runs out.';
+  if (S.mode === 'zombie') { if (S.phase === 'over') x = S.winner === 'town' ? 'The cure is ready. The humans win!' : 'The zombies overran the town.'; else x += ` 🧟 Bitten players turn after two nights. The Doctor can cure. Cure ${S.cure}%.`; if (S.infected && S.alive && S.phase !== 'over') x = '🤒 You were bitten and feel feverish. Find the Doctor before you turn!'; }
+  if (S.tour && S.phase === 'over' && !S.tour.done) x += ' Waiting for the other tables. The next round starts soon.';
   const note = S.notes.at(-1); if (note && S.role === 'detective') x += '  ' + note;
   if (S.jailed) x = '⛓️ You are in jail tonight. You cannot use your power. You can talk privately with the Jailer.';
   if (S.jailee) x += ' Prisoner: ' + (S.players.find(p => p.id === S.jailee)?.name || '?') + '.';
@@ -532,7 +546,7 @@ function renderPlayers() {
   $('#players').innerHTML = S.players.filter(p => !p.spectator).map(p => {
     const mine = acts.filter(a => p.alive && a.ok(p));
     const tag = p.role ? `<span class="tag ${isM(p.role) ? 'mafia' : ''}">${portrait(p.role, 18)} ${nm(p.role)}</span>` : '';
-    const extra = (S.mode === 'mystery' && p.look ? `<span class="tag">👤 ${p.look.hair} hair · ${p.look.coat} coat · ${p.look.item}</span>` : '') + (p.victim ? '<span class="tag">☠️ victim</span>' : '') + (S.mode === 'team' && p.team ? `<span class="tag team-${p.team}">${p.team === 'red' ? '🟥' : '🟦'} ${p.team}</span>` : '') + ((S.sickIds || []).includes(p.id) ? '<span class="tag">🦠 infected</span>' : '');
+    const extra = (S.mode === 'mystery' && p.look ? `<span class="tag">👤 ${p.look.hair} hair · ${p.look.coat} coat · ${p.look.item}</span>` : '') + (p.victim ? '<span class="tag">☠️ victim</span>' : '') + (S.mode === 'team' && p.team ? `<span class="tag team-${p.team}">${p.team === 'red' ? '🟥' : '🟦'} ${p.team}</span>` : '') + ((S.sickIds || []).includes(p.id) ? '<span class="tag">🦠 infected</span>' : '') + (p.turned ? '<span class="tag">🧟 turned</span>' : '') + ((S.infectedIds || []).includes(p.id) ? '<span class="tag">🤒 bitten</span>' : '');
     const flags = (S.silenced === p.id ? `<span class="tag">${t('silencedTag')}</span>` : '') + (p.muted ? `<span class="tag">${t('mutedTag')}</span>` : '');
     const btns = mine.map(a => `<button data-id="${p.id}" data-type="${a.type}">${a.type === 'vote' ? '🗳️ ' : ''}${a.label}</button>`).join('') + (canWhisper && p.alive && p.id !== S.me ? `<button data-w="${p.id}" class="ghost">${t('whisper')}</button>` : '');
     const mod = p.id !== S.me && !p.bot ? `<button class="mini" data-mute="${esc(p.name)}" title="Mute for me">${mutedNames.has(p.name) ? '🔈' : '🔇'}</button>` + (S.isHost ? `<button class="mini hm" data-hmute="${p.id}" title="Mute for everyone">🚫</button>` : `<button class="mini hm" data-report="${p.id}" title="Report">⚑</button>`) : '';
@@ -586,7 +600,7 @@ function deal() {
   c.className = 'rcard dealing';
   el.querySelector('.front').className = 'face front' + (cosSel().back ? ' cb-' + cosSel().back : '');
   el.querySelector('.front').innerHTML = '<b>🎭</b>Dealing your role...';
-  el.querySelector('.back').innerHTML = `${portrait(S.role, 120)}<span class="tag">${esc(t('youare', ''))}</span><strong>${esc(nm(S.role))}</strong><span class="tag" style="font-size:.8rem">${esc(desc(S.role))}</span>`;
+  el.querySelector('.back').innerHTML = `${portrait(S.role, 120, cardStyle(S.role))}<span class="tag">${esc(t('youare', ''))}</span><strong>${esc(nm(S.role))}</strong><span class="tag" style="font-size:.8rem">${esc(desc(S.role))}</span>`;
   el.classList.remove('hidden');
   setTimeout(() => c.classList.add('flipped'), 1400);
   clearTimeout(deal.t); deal.t = setTimeout(() => el.classList.add('hidden'), 6500);
@@ -596,19 +610,34 @@ $('#deal').onclick = () => $('#deal').classList.add('hidden');
 // ---------- generated phase music (WebAudio, no files) ----------
 let musicOn = localStorage.music !== '0', mTick = null, mi = 0;
 const mtone = (f, d, v = .04, type = 'sine') => { if (musicOn && !muted) tone(f, d, 0, type, v); };
-function musicMode() {
+const voteCounts = () => { const c = {}; Object.values(S.votes || {}).forEach(t => { if (t) c[t] = (c[t] || 0) + 1; }); return c; };
+function intensity() {                             // 0 = calm, 1 = tense: driven by the clock, the night's progress and how close a lynching is
   if (!S || ['lobby', 'over'].includes(S.phase)) return null;
-  if (S.phase === 'night') return 'night';
-  if (S.phase === 'day') { const left = S.endsAt && S.dur ? (S.endsAt - Date.now()) / S.dur : 1, votes = Object.values(S.votes || {}).filter(Boolean).length; return left < 0.3 || votes >= 2 ? 'vote' : 'day'; }
-  return 'night';
+  const left = S.endsAt && S.dur ? Math.max(0, (S.endsAt - Date.now()) / S.dur) : 1;
+  if (S.phase === 'night') return Math.min(1, 0.55 * ((S.step || 0) / Math.max(1, S.steps || 1)) + 0.45 * (1 - left));
+  const need = Math.floor(S.players.filter(p => p.alive && !p.spectator).length / 2) + 1, top = Math.max(0, ...Object.values(voteCounts()));
+  return Math.min(1, Math.max(0.8 * (1 - left), top / need));
 }
+const votePing = n => mtone(330 + Math.min(n, 8) * 55, .3, .07, 'triangle');
 function musicStep() {
-  const m = musicMode(); if (!m) return; mi++;
-  if (m === 'day') mtone([262, 330, 392, 523, 392, 330, 294, 349][mi % 8], .7, .035, 'triangle');
-  else if (m === 'night') { if (mi % 8 === 1) mtone(55, 3.5, .06); if (Math.random() < .25) mtone([220, 262, 311, 330][Math.floor(Math.random() * 4)], 1.4, .025); }
-  else { if (mi % 2 === 0) { mtone(60, .18, .12); setTimeout(() => mtone(50, .2, .1), 150); } if (mi % 4 === 0) mtone(466, .5, .02, 'sawtooth'); }   // heartbeat while the vote is tense
+  const I = intensity(); if (I === null) return; mi++;
+  const left = S.endsAt ? (S.endsAt - Date.now()) / 1000 : 99;
+  if (S.phase === 'night') {
+    if (mi % 8 === 1) mtone(55, 3.5, .05 + I * .05);
+    if (Math.random() < .2 + I * .35) mtone([220, 262, 311, 330, 392][Math.floor(Math.random() * 5)], 1.2, .02 + I * .02);
+    if (I > .5 && mi % 4 === 0) mtone(110, .3, .05, 'triangle');
+  } else {
+    const scale = I > .6 ? [262, 311, 392, 415, 392, 311, 277, 349] : [262, 330, 392, 523, 392, 330, 294, 349];   // turns minor as the vote tightens
+    mtone(scale[mi % 8], .6, .03 + I * .015, 'triangle');
+    if (I > .35 && mi % 2 === 0) mtone(scale[(mi + 3) % 8] * 2, .25, .015);
+    if (I > .6 && mi % 2 === 0) { mtone(60, .18, .1); setTimeout(() => mtone(50, .2, .08), 140); }                    // heartbeat
+    if (I > .85 && mi % 4 === 0) mtone(466, .5, .02, 'sawtooth');
+    if (left < 10 && left > 0 && mi % 2 === 0) mtone(1200, .05, .03, 'square');                                       // ticking clock
+  }
 }
-function syncMusic() { const want = musicOn && S && !['lobby', 'over'].includes(S.phase); if (want && !mTick) mTick = setInterval(musicStep, 450); if (!want && mTick) { clearInterval(mTick); mTick = null; } }
+let mTimer = null;
+function musicLoop() { musicStep(); mTimer = setTimeout(musicLoop, 520 - (intensity() || 0) * 260); }
+function syncMusic() { const want = musicOn && S && !['lobby', 'over'].includes(S.phase); if (want && !mTimer) musicLoop(); if (!want && mTimer) { clearTimeout(mTimer); mTimer = null; } }
 const setMusicLabel = () => { $('#mus').textContent = musicOn ? 'Music on' : 'Music off'; };
 $('#mus').onclick = () => { musicOn = !musicOn; localStorage.music = musicOn ? '1' : '0'; setMusicLabel(); syncMusic(); };
 setMusicLabel();
@@ -651,12 +680,13 @@ const MODESD = [
   ['team', '🟥', 'Team Battle', 'Two teams, each with its own hidden Mafia who attack the rival team. Lose all your Mafia and you lose. 6+ players.'],
   ['coop', '🤝', 'Co-op Mystery', 'Everyone is Town. Hidden AI Mafia join the table and play differently each game. 2+ players.'],
   ['mystery', '🔎', 'Murder Mystery', 'A body is found at the start and a true clue about the killer appears each day. 5+ players.'],
+  ['zombie', '🧟', 'Zombie Outbreak', 'Hidden zombies bite one player a night. The bitten turn after two nights. The Doctor can cure, and Town wins when the cure reaches 100%. 5+ players.'],
 ];
 const modeName = id => (MODESD.find(m => m[0] === id) || MODESD[0])[2];
-const ALIGN = { bad: ['mafia', 'godfather', 'silencer'], neutral: ['jester', 'serialkiller', 'survivor', 'pirate', 'plaguebearer'] };
+const ALIGN = { bad: ['mafia', 'godfather', 'silencer'], neutral: ['jester', 'serialkiller', 'survivor', 'pirate', 'plaguebearer', 'doppelganger'] };
 const alignOf = k => (ALIGN.bad.includes(k) ? 'bad' : ALIGN.neutral.includes(k) ? 'neutral' : 'good');
 const BADGE = { good: ['Good', '#2ecc71'], bad: ['Bad', '#ef4b57'], neutral: ['Neutral', '#f0b95a'] };
-const WINS = { jester: 'Wins by getting lynched.', serialkiller: 'Wins as the last one standing.', survivor: 'Wins by being alive when the game ends, even if their side loses.', pirate: 'Wins by winning two duels and staying alive.', plaguebearer: 'Wins by infecting every living player. All the infected win with them.', good: 'Wins with the Town: eliminate all Mafia and other threats.', bad: 'Wins with the Mafia: equal or outnumber everyone else.' };
+const WINS = { jester: 'Wins by getting lynched.', serialkiller: 'Wins as the last one standing.', survivor: 'Wins by being alive when the game ends, even if their side loses.', pirate: 'Wins by winning two duels and staying alive.', doppelganger: 'Counts as Town until they copy the first role to die, then wins with that new side.', plaguebearer: 'Wins by infecting every living player. All the infected win with them.', good: 'Wins with the Town: eliminate all Mafia and other threats.', bad: 'Wins with the Mafia: equal or outnumber everyone else.' };
 const badge = k => `<span class="badge" style="background:${BADGE[alignOf(k)][1]}">${BADGE[alignOf(k)][0]}</span>`;
 function openRoleInfo(k) {
   $('#rulesbody').innerHTML = `<div class="rinfo">${portrait(k, 76)}<div><h2>${esc(nm(k))}</h2>${badge(k)}</div></div><p>${esc(desc(k))}</p><p class="tag">${esc(WINS[k] || WINS[alignOf(k)])}</p>`;
@@ -755,4 +785,57 @@ function renderScene() {
   const orb = night ? `<circle class="orb" cx="${W - 42}" cy="22" r="13"/><circle cx="${W - 46}" cy="19" r="2.4" class="crater"/><circle cx="${W - 38}" cy="26" r="1.8" class="crater"/>` : `<g class="rays" style="transform-origin:${W - 42}px 24px">${[0, 45, 90, 135, 180, 225, 270, 315].map(a => `<line x1="${W - 42}" y1="6" x2="${W - 42}" y2="1" transform="rotate(${a} ${W - 42} 24)"/>`).join('')}</g><circle class="orb" cx="${W - 42}" cy="24" r="11"/>`;
   $('#scene').innerHTML = `<svg viewBox="0 0 ${W} 100" preserveAspectRatio="xMidYMax meet" role="img" aria-label="The town">${sky}${orb}<path class="hills" d="M0 74Q${W * 0.2} 48 ${W * 0.4} 68T${W * 0.8} 62 ${W} 70V100H0z"/>${tree(10)}${tree(W - 18)}${houses}${lamps}<rect class="ground" x="0" y="82" width="${W}" height="18"/><path class="road" d="M0 90H${W}"/></svg>`;
   prevAlive = Object.fromEntries(ps.map(p => [p.id, p.alive]));
+}
+
+// ---------- character bots, tournament board, zombie cure ----------
+const THEMEL = { detective: '🕵️ Detective', pirate: '🏴‍☠️ Pirate', scientist: '🔬 Scientist', villain: '😈 Villain', normal: '🙂 Normal' };
+function renderTour() {
+  const el = $('#tour'), T = S.tour;
+  if (!T) return el.classList.add('hidden');
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="bh"><span>🏆 Tournament · ${esc(T.name)}</span><span class="tag">${T.champion ? 'Champion: ' + esc(T.champion.join(', ')) : T.out ? 'You are out. Watch the final!' : ''}</span></div>` +
+    T.tables.map(tb => `<div class="rline ${tb.here ? 'here' : ''}">${esc(tb.label)} · ${tb.status === 'done' ? '✅ done' : '🎲 playing'} · ${tb.players.map(esc).join(', ')}</div>`).join('') +
+    (T.points.length ? `<div class="tag">Points: ${T.points.map(p => `${esc(p.name)} ${p.pts}`).join(' · ')}</div>` : '');
+}
+function renderCure() {
+  const el = $('#cure');
+  if (S.mode !== 'zombie') return el.classList.add('hidden');
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="bh"><span>🧪 Cure progress</span><span class="tag">${S.cure}% · ${S.players.filter(p => p.turned).length} turned</span></div><div class="bar"><i style="width:${S.cure}%"></i></div><div class="tag">+10% each morning, +20% per Doctor cure, +10% when the Detective finds an infected player or a zombie, +10% per zombie lynched.</div>`;
+}
+
+// ---------- cinematic intro ----------
+const TAGS = { classic: 'Someone among you is lying.', metro: 'The city never sleeps. Neither do its secrets.', royale: 'The ground is breaking apart. Stay in the light.', team: 'Two towns. Two shadows. One survivor.', coop: 'You trust each other. You should not.', mystery: 'A body. A killer. A town full of liars.', zombie: 'It started with a cough.' };
+function intro(cb) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return cb();
+  const el = $('#intro');
+  $('#itag').textContent = TAGS[S.mode] || TAGS.classic;
+  $('#isub').textContent = `${S.players.filter(p => !p.spectator).length} players · ${modeName(S.mode)}`;
+  el.className = 'play'; SFX.night();
+  let done = false;
+  const end = () => { if (done) return; done = true; el.className = 'hidden'; cb(); };
+  el.onclick = end; setTimeout(end, 5600);
+}
+
+// ---------- collectible role cards ----------
+const CARDSTY = [['classic', 'Classic', 'Always unlocked'], ['noir', 'Noir', 'Play this role once'], ['neon', 'Neon', 'Play this role 3 times'], ['gold', 'Gold', 'Win 2 games as this role'], ['holo', 'Holo', 'Win 5 games as this role']];
+const colData = () => JSON.parse(localStorage.col || '{}');
+function unlocked(role, id, c = colData()) {
+  const x = c[role] || { plays: 0, wins: 0 };
+  return id === 'classic' || (id === 'noir' && x.plays >= 1) || (id === 'neon' && x.plays >= 3) || (id === 'gold' && x.wins >= 2) || (id === 'holo' && x.wins >= 5);
+}
+const cardStyle = role => { const id = (JSON.parse(localStorage.cards || '{}'))[role]; return id && id !== 'classic' && unlocked(role, id) ? id : ''; };
+function recordCollection() {
+  if (!S.role) return;
+  const before = colData(), after = JSON.parse(JSON.stringify(before)), x = after[S.role] = after[S.role] || { plays: 0, wins: 0 };
+  x.plays++; if (won()) x.wins++;
+  localStorage.col = JSON.stringify(after);
+  CARDSTY.forEach(([id, label]) => { if (!unlocked(S.role, id, before) && unlocked(S.role, id, after)) setTimeout(() => toast(`🃏 New card art unlocked: ${nm(S.role)} ${label}`), 4200); });
+}
+function openCollection() {
+  const c = colData();
+  $('#rulesbody').innerHTML = '<h2>🃏 Card collection</h2><p class="tag">Play and win with a role to unlock new card art. The art you equip shows when your role is dealt.</p><div class="colgrid">' +
+    Object.keys(R).map(k => { const st = c[k] || { plays: 0, wins: 0 }; return `<div class="colcard">${portrait(k, 64, cardStyle(k))}<b>${esc(nm(k))}</b><span class="tag">${st.plays} plays · ${st.wins} wins</span><div class="chips">${CARDSTY.map(([id, label, need]) => unlocked(k, id, c) ? `<button data-card="${k}:${id}" class="${(cardStyle(k) || 'classic') === id ? 'on' : ''}">${label}</button>` : `<span class="tag" title="${need}">🔒 ${label}</span>`).join('')}</div></div>`; }).join('') + '</div>';
+  $('#rulesbody').querySelectorAll('[data-card]').forEach(b => b.onclick = () => { const [k, id] = b.dataset.card.split(':'), eq = JSON.parse(localStorage.cards || '{}'); eq[k] = id; localStorage.cards = JSON.stringify(eq); openCollection(); });
+  if (!$('#rules').open) $('#rules').showModal();
 }

@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="day">
+<div id="intro" class="hidden"><div class="bar top"></div><div class="bar bot"></div><div class="moon"></div><svg class="sk" viewBox="0 0 400 60" preserveAspectRatio="none"><path d="M0 60V38h18V26h10V38h16V30h14V16l10-8 10 8v14h18V34h12V22h10V34h20V28h14V42h18V24h12l8-10 8 10V42h20V32h14V44h16V30h12V40h22V60z"/></svg><div class="ititle">MAFIA</div><div class="itag" id="itag"></div><div class="isub" id="isub"></div></div>
 <div id="conn" class="hidden" role="status">Connection lost. Reconnecting…</div>
 <div id="confetti"></div>
 <div id="fog"></div><div id="fx"></div><div id="trans"><i class="sun"></i></div>
@@ -24,7 +25,8 @@
   <button id="join" data-i18n="join"></button>
   <button id="tutorial" data-i18n="tutorial"></button>
   <button id="tutorialMap">🗺️ Map mode tutorial</button>
-  <div class="row"><button id="rulesHome" class="ghost" data-i18n="howto"></button><button id="achHome" class="ghost" data-i18n="ach"></button><a class="btn" href="history.html" data-i18n="history"></a></div>
+  <button id="tourBtn">🏆 Tournament night</button>
+  <div class="row"><button id="rulesHome" class="ghost" data-i18n="howto"></button><button id="achHome" class="ghost" data-i18n="ach"></button><button id="colBtn" class="ghost">🃏 Card collection</button><a class="btn" href="history.html" data-i18n="history"></a></div>
   <p id="stats" class="sub"></p>
   <p id="err" class="error"></p>
 </main>
@@ -52,6 +54,8 @@
       <div id="rolecard"><div id="role" class="role"></div></div>
       <div id="banner" aria-live="polite"></div>
       <div id="tip" class="hidden"></div>
+      <section id="tour" class="ballot hidden"></section>
+      <section id="cure" class="ballot hidden"></section>
       <section id="metro" class="hidden"><div id="mapbar"></div><div id="map"></div><div id="mapinfo"></div></section>
       <section id="clues" class="ballot hidden"></section>
       <section id="poll" class="ballot hidden"></section>

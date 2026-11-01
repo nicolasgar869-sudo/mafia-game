@@ -246,3 +246,29 @@ dialog#paper{max-width:640px;background:#ece3cf;color:#1c1a16}dialog#paper butto
 @media (max-width:520px){.paper .cols{grid-template-columns:1fr}}
 .node.danger rect{stroke:#ef4b57;stroke-dasharray:6 4;fill:rgba(239,75,87,.18)}
 .tag.team-red{color:#ff7b7b}.tag.team-blue{color:#7bb0ff}
+/* ---- v9: intro, card art, zombie, tournament ---- */
+#intro{position:fixed;inset:0;z-index:40;background:radial-gradient(ellipse at 70% 20%,#1a2455,#050818 70%);overflow:hidden;cursor:pointer}
+#intro .bar{position:absolute;left:0;right:0;height:13vh;background:#000;z-index:3}
+#intro .top{top:0;animation:barT 5.6s ease-in-out forwards}#intro .bot{bottom:0;animation:barB 5.6s ease-in-out forwards}
+@keyframes barT{0%{transform:translateY(-100%)}12%,92%{transform:none}100%{transform:translateY(-100%)}}
+@keyframes barB{0%{transform:translateY(100%)}12%,92%{transform:none}100%{transform:translateY(100%)}}
+#intro .moon{position:absolute;right:16%;top:60%;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#cdd6f5 60%,#8c9ad6);box-shadow:0 0 60px #9fb4ff;animation:moonup 5.6s ease-out forwards}
+@keyframes moonup{to{top:14%}}
+#intro .sk{position:absolute;left:-5%;bottom:13vh;width:110%;height:34vh;fill:#05060f;animation:skpan 5.6s linear forwards}
+@keyframes skpan{from{transform:translateX(3%) scale(1.05)}to{transform:translateX(-3%) scale(1)}}
+#intro .ititle{position:absolute;left:0;right:0;top:34%;text-align:center;font:800 clamp(3.5rem,16vw,8rem)/1 Fraunces,Georgia,serif;color:#fff;letter-spacing:.5em;text-shadow:0 0 40px #7c8cff;opacity:0;animation:ttl 5.6s ease-out forwards;animation-delay:.9s}
+@keyframes ttl{0%{opacity:0;letter-spacing:.9em}30%{opacity:1}85%{opacity:1;letter-spacing:.2em}100%{opacity:0;letter-spacing:.15em}}
+#intro .itag,#intro .isub{position:absolute;left:0;right:0;text-align:center;color:#dbe4ff;opacity:0;animation:fadein 4s ease-out forwards}
+#intro .itag{top:58%;font:italic 600 clamp(1rem,3.5vw,1.6rem) Fraunces,Georgia,serif;animation-delay:2.2s}
+#intro .isub{top:66%;font-size:.9rem;letter-spacing:.2em;text-transform:uppercase;color:#93a0cf;animation-delay:3s}
+@keyframes fadein{0%{opacity:0;transform:translateY(10px)}25%,80%{opacity:1;transform:none}100%{opacity:0}}
+.pt.noir{filter:grayscale(1) contrast(1.35)}
+.pt.neon{filter:hue-rotate(150deg) saturate(1.9) drop-shadow(0 0 5px #0ff)}
+.pt.gold{filter:sepia(1) saturate(2.4) drop-shadow(0 0 6px #ffd24a)}
+.pt.holo{animation:holo 4s linear infinite;filter:drop-shadow(0 0 6px #fff)}
+@keyframes holo{to{filter:hue-rotate(360deg) drop-shadow(0 0 6px #fff)}}
+.colgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.colcard{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}
+.colcard .chips{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}.colcard .chips button{padding:2px 8px;font-size:.75rem}.colcard .chips button.on{border-color:var(--accent);color:var(--accent)}
+#tour .rline.here{color:var(--accent);font-weight:700}
+#cure .bar i{background:linear-gradient(90deg,#3ddc84,#00c2a8)}
