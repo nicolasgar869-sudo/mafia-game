@@ -10,10 +10,10 @@ process.on('unhandledRejection', e => console.error('unhandled:', e));
 
 const MAX_PLAYERS = 15, MIN_PLAYERS = 3, LAST_WORDS_SECS = 15, WHISPERS_PER_DAY = 2;
 const BASIC = ['detective', 'doctor', 'vigilante', 'bodyguard', 'mayor', 'jester'];
-const NEUTRAL_UNIQUE = ['witch', 'escort', 'spy', 'serialkiller', 'jailer', 'pirate', 'survivor', 'plaguebearer'];
+const NEUTRAL_UNIQUE = ['witch', 'escort', 'spy', 'serialkiller', 'jailer', 'pirate', 'survivor', 'plaguebearer', 'doppelganger'];
 const MAFIA_ROLES = ['mafia', 'godfather', 'silencer'];
-const MODES = ['classic', 'metro', 'royale', 'team', 'coop', 'mystery'];
-const MODEMIN = { classic: 3, metro: 3, royale: 5, team: 6, coop: 2, mystery: 5 };
+const MODES = ['classic', 'metro', 'royale', 'team', 'coop', 'mystery', 'zombie'];
+const MODEMIN = { classic: 3, metro: 3, royale: 5, team: 6, coop: 2, mystery: 5, zombie: 5 };
 const MOVES = ['strike', 'trick', 'guard'], BEATS = { strike: 'trick', trick: 'guard', guard: 'strike' };
 const AINAMES = ['Vera', 'Marco', 'Ines', 'Teo', 'Lena', 'Omar'];
 const HAIR = ['black', 'blond', 'red', 'grey'], COAT = ['red', 'green', 'blue', 'yellow'], ITEM = ['an umbrella', 'a briefcase', 'a cane', 'nothing'];
@@ -29,7 +29,7 @@ const rooms = {};
 const defaults = () => ({
   night: 20, day: 120, mafia: 0, botLevel: 'normal', metro: false, mode: 'classic', coach: true, reveal: true, lastWords: true, events: false, anon: false, filter: true, lovers: false, voice: '',
   roles: { detective: true, doctor: true, vigilante: false, bodyguard: false, mayor: false, jester: false, godfather: false,
-    witch: false, escort: false, spy: false, serialkiller: false, silencer: false, jailer: false, pirate: false, survivor: false, plaguebearer: false },
+    witch: false, escort: false, spy: false, serialkiller: false, silencer: false, jailer: false, pirate: false, survivor: false, plaguebearer: false, doppelganger: false },
 });
 
 // ---------- helpers ----------
@@ -41,6 +41,8 @@ const ADJ = { hub: ['financial', 'industrial', 'docks', 'heights'], financial: [
 const dist = (a, b) => (a === b ? 0 : ADJ[a].includes(b) ? 1 : 2);        // 2 = non-adjacent (opposite corners)
 const fac = p => (isM(p) ? 'mafia' : p.role === 'serialkiller' ? 'sk' : p.role === 'jester' ? 'jester' : 'town');
 const PERSONAS = ['calm', 'paranoid', 'quiet', 'loud'];
+const THEMES = ['detective', 'pirate', 'scientist', 'villain', 'normal'];
+const THEMENAMES = { detective: ['Holmes', 'Poirot', 'Marple', 'Columbo'], pirate: ['Redbeard', 'Anne', 'Calico', 'Barnacle'], scientist: ['Curie', 'Nova', 'Tesla', 'Darwin'], villain: ['Doom', 'Venom', 'Shadow', 'Nemesis'], normal: ['Ada', 'Ben', 'Cleo', 'Dex', 'Eli', 'Faye', 'Gus', 'Hana'] };
 const FRAMES = ['bronze', 'crimson', 'gold', 'pink', 'emerald'], COLORS = ['cyan', 'mint'];
 const cleanCos = c => ({ frame: FRAMES.includes(c && c.frame) ? c.frame : '', color: COLORS.includes(c && c.color) ? c.color : '' });
 const newCode = () => { let c; do { c = Math.random().toString(36).slice(2, 6).toUpperCase(); } while (rooms[c]); return c; };
@@ -65,18 +67,19 @@ function view(r, me) {
   const over = r.phase === 'over';
   const votes = r.phase !== 'day' ? {} : r.set.anon && !over ? (me.id in r.votes ? { [me.id]: r.votes[me.id] } : {}) : r.votes;
   return {
-    code: r.code, me: me.id, isHost: r.host === me.id, role: me.role, alive: me.alive, spectator: !!me.spectator, shots: me.shots || 0,
+    code: r.code, me: me.id, isHost: r.host === me.id && !(r.tour && !r.hub), role: me.role, alive: me.alive, spectator: !!me.spectator, shots: me.shots || 0,
     phase: r.phase, day: r.day, endsAt: r.endsAt, winner: r.winner, min: MODEMIN[r.set.mode] || MIN_PLAYERS, set: r.set, lw: r.lw, hostId: r.host,
     paused: !!r.paused, metro: !!r.set.metro, ip: me.ip, pos: me.pos, moved: me.movedDay === r.day, facUsed: !!(r.facUsed && r.facUsed[me.id]), kevlar: !!me.kevlar, longRange: !!me.longRange, smug: !!me.smug,
     frozen: me.frozenDay === r.day, fund: (r.fund || {})[fac(me)] || 0, veto: !!(r.veto || {})[fac(me)], proxy: r.proxy || {}, discount: !!r.set.metro && control(r, 'industrial') === fac(me),
-    sab: Object.fromEntries(Object.entries(r.sab || {}).filter(([, d]) => d === r.day)), leads: Object.fromEntries(Object.keys(DISTRICTS).map(d => [d, control(r, d) === fac(me)])), tutorial: !!r.tutorial, mode: r.set.mode, team: me.team, danger: r.danger || [], clues: r.set.mode === 'mystery' ? (r.clues || []) : [], vests: me.vests || 0,
+    sab: Object.fromEntries(Object.entries(r.sab || {}).filter(([, d]) => d === r.day)), leads: Object.fromEntries(Object.keys(DISTRICTS).map(d => [d, control(r, d) === fac(me)])), tutorial: !!r.tutorial, mode: r.set.mode, team: me.team, tour: r.tour && TOURS[r.tour] ? tourView(r, me) : null,
+    cure: r.set.mode === 'zombie' ? r.cure : undefined, infected: !!me.infected, infectedIds: r.set.mode === 'zombie' && isM(me) ? list(r).filter(p => p.infected && !isM(p)).map(p => p.id) : [], danger: r.danger || [], clues: r.set.mode === 'mystery' ? (r.clues || []) : [], vests: me.vests || 0,
     duelFor: r.phase === 'night' && !!r.duel && r.duel.target === me.id && r.duel.tmove === undefined, iSick: r.phase === 'over' ? !!me.sick : undefined,
     sickIds: me.role === 'plaguebearer' || r.phase === 'over' ? list(r).filter(p => p.sick).map(p => p.id) : [], exec: me.exec || 0, poll: pollView(r, me),
     jailed: r.phase === 'night' && r.jailed === me.id, jailee: me.role === 'jailer' && r.phase === 'night' ? r.jailed : null,
     jchat: r.phase === 'night' && r.jailed && (me.id === r.jailed || (me.role === 'jailer' && me.alive)) ? r.jchat : [], dchat: ((!me.alive && r.phase !== 'lobby') || over) ? r.dchat : [], turn: r.phase === 'night' ? r.turn : null, step: r.step, steps: (r.order || []).length, dur: r.dur, event: r.event, silenced: r.phase === 'day' ? r.silenced : null, skipN: Object.keys(r.skip || {}).length,
     potions: me.potions || null, lover: me.lover ? r.players[me.lover]?.name : null, whispers: me.whispers,
     players: list(r).map(q => ({
-      id: q.id, name: q.name, av: q.av, bot: !!q.bot && !q.ai, team: q.team, victim: !!q.victim, look: r.set.mode === 'mystery' ? q.look : undefined, muted: !!r.muted[q.id], cos: q.cos, alive: q.alive || (!!q.hidden && q.id !== me.id), pos: q.pos, ready: !!q.ready || !!q.bot, persona: q.bot && !q.ai ? q.persona : undefined, connected: q.connected, spectator: !!q.spectator,
+      id: q.id, name: q.name, av: q.av, bot: !!q.bot && !q.ai, theme: q.bot && !q.ai ? q.theme : undefined, turned: !!q.turnedDay, team: q.team, victim: !!q.victim, look: r.set.mode === 'mystery' ? q.look : undefined, muted: !!r.muted[q.id], cos: q.cos, alive: q.alive || (!!q.hidden && q.id !== me.id), pos: q.pos, ready: !!q.ready || !!q.bot, persona: q.bot && !q.ai ? q.persona : undefined, connected: q.connected, spectator: !!q.spectator,
       role: (over || (!q.alive && !q.spectator && r.set.reveal && !q.hidden) || q.id === me.id || (isM(me) && isM(q) && (!me.team || me.team === q.team))) ? q.role : null,
     })),
     log: r.log, chat: r.chat,
@@ -122,13 +125,13 @@ function addClue(r) {                           // murder mystery: one true clue
 function startGame(r) {
   const s = r.set; if (s.mode === 'coop') addAiMafia(r);
   const ps = list(r), n = ps.length, coop = s.mode === 'coop', team = s.mode === 'team';
-  let m = coop ? ps.filter(p => p.ai).length : Math.max(1, Math.min(s.mafia || Math.floor(n / 3), Math.floor((n - 1) / 2)));
+  let m = coop ? ps.filter(p => p.ai).length : Math.max(1, Math.min(s.mafia || Math.floor(n / (s.mode === 'zombie' ? 4 : 3)), Math.floor((n - 1) / 2)));
   if (team) { m = Math.max(2, Math.min(m, Math.floor((n - 1) / 2))); if (m % 2) m--; m = Math.max(2, m); }
   const roles = Array(m).fill('mafia');
   let i = 0;
   if (s.roles.godfather) roles[i++] = 'godfather';
   if (s.roles.silencer && i < m) roles[i++] = 'silencer';
-  const skip = coop || team ? ['jester', 'serialkiller', 'survivor', 'pirate', 'plaguebearer'] : [];
+  const skip = (coop || team || s.mode === 'zombie' ? ['jester', 'serialkiller', 'survivor', 'pirate', 'plaguebearer'] : []).concat(team ? ['doppelganger'] : []);
   [...BASIC, ...NEUTRAL_UNIQUE].forEach(k => { if (s.roles[k] && !skip.includes(k) && roles.length < n) roles.push(k); });
   while (roles.length < n) roles.push('town');
   let best, bestScore = Infinity;                       // keep the deal that repeats the fewest roles from last round
@@ -136,7 +139,7 @@ function startGame(r) {
     const a = shuffle([...roles]), sc = a.reduce((c, x, j) => c + (x === ps[j].prev ? 1 : 0), 0);
     if (sc < bestScore) { bestScore = sc; best = a; }
   }
-  ps.forEach((p, j) => Object.assign(p, { role: best[j], alive: true, notes: [], whispers: [], lover: null, shots: best[j] === 'vigilante' ? 1 : 0, exec: best[j] === 'jailer' ? 2 : 0, vests: best[j] === 'survivor' ? 2 : 0, sick: best[j] === 'plaguebearer', duels: 0, team: undefined, victim: false, look: undefined, claimed: null, vlog: [], potions: best[j] === 'witch' ? { save: 1, poison: 1 } : null }));
+  ps.forEach((p, j) => Object.assign(p, { role: best[j], alive: true, notes: [], whispers: [], lover: null, shots: best[j] === 'vigilante' ? 1 : 0, exec: best[j] === 'jailer' ? 2 : 0, vests: best[j] === 'survivor' ? 2 : 0, sick: best[j] === 'plaguebearer', duels: 0, team: undefined, victim: false, look: undefined, claimed: null, vlog: [], infected: 0, turnedDay: 0, diedDay: 0, rivalOf: undefined, potions: best[j] === 'witch' ? { save: 1, poison: 1 } : null }));
   if (coop) { const mh = ps.filter(p => !p.ai && isM(p)); ps.filter(p => p.ai && !isM(p)).forEach((a, k) => { const h = mh[k]; if (h) [a.role, h.role] = [h.role, a.role]; }); }   // the AI hold the Mafia roles
   if (team) {
     shuffle(ps.filter(isM)).forEach((p, k) => { p.team = k % 2 ? 'blue' : 'red'; });
@@ -148,9 +151,10 @@ function startGame(r) {
   if (s.metro) ps.forEach(p => Object.assign(p, { ip: 50, pos: pick(Object.keys(DISTRICTS)), moves: [], kevlar: false, longRange: false, smug: false, hidden: false, frozenDay: 0, movedDay: 0 }));
   if (r.tutorial && s.metro) { const h = ps.find(p => !p.bot); if (h) h.ip = 90; }   // map tutorial: enough IP to buy armor
   r.order = ORDER.filter(g => ps.some(p => grp(p) === g));
+  { const bs = shuffle(ps.filter(p => p.bot && !p.ai)); ps.filter(p => !p.bot && !p.spectator).forEach((h, k) => { if (bs.length) bs[k % bs.length].rivalOf = h.id; }); }   // each human gets a rival bot
   if (s.lovers && n >= 4) { const [a, b] = shuffle([...ps]); a.lover = b.id; b.lover = a.id; }
   Object.assign(r, { day: 0, log: [], chat: [], mchat: [], winner: null, lw: null, story: [], awards: [], voteTotals: {}, msgs: {}, ment: {}, dchat: [], vh: [], event: null, silenced: null, jam: {}, framed: {}, taps: [], sab: {}, veto: {}, fund: {}, delayed: [], hired: {}, mem: {}, poll: null, proxy: {}, bypass: {}, moved: {}, facUsed: {},
-    danger: [], clues: [], clueUsed: {}, claims: [], learn: { talk: 1, acc: 1 }, alliance: {}, bk: {} });
+    danger: [], clues: [], clueUsed: {}, claims: [], learn: { talk: 1, acc: 1 }, alliance: {}, bk: {}, firstDeath: false, cure: 0 });
   if (s.metro) { const ds = shuffle(['financial', 'industrial', 'docks', 'heights']); r.alliance = { town: ds[0], mafia: ds[1] }; }
   log(r, `The game begins with ${n} players and ${m} Mafia hiding among them.`);
   if (s.mode === 'mystery' && n >= 5) {
@@ -214,10 +218,17 @@ function nextStep(r) {
   if (act) living(r).filter(p => p.bot && grp(p) === t).forEach(p => later(r, 1000 + Math.random() * 2500, () => { if (r.phase === 'night' && r.turn === t && p.alive) botAct(r, p); }));
   emit(r);
 }
+function becomeRole(r, dg, role) {              // Doppelganger: copies the first role that dies
+  dg.role = role;
+  Object.assign(dg, { shots: role === 'vigilante' ? 1 : 0, exec: role === 'jailer' ? 2 : 0, vests: role === 'survivor' ? 2 : 0, sick: role === 'plaguebearer', potions: role === 'witch' ? { save: 1, poison: 1 } : null });
+  r.order = ORDER.filter(g => r.order.includes(g) || g === grp(dg));
+  dg.notes.push(`The first death was the ${role}. You copied it and you are now the ${role}!${isM(dg) ? ' You now belong to the Mafia.' : ''}`);
+}
 function kill(r, p, how, hide) {
-  p.alive = false;
+  p.alive = false; p.diedDay = r.day;
   const msg = `${p.name} was ${how}.${r.set.reveal ? ` They were ${p.role}.` : ''}`;
   if (hide) { p.hidden = true; r.delayed.push(msg); } else log(r, msg);
+  if (!r.firstDeath) { r.firstDeath = true; const dg = living(r).find(q => q.role === 'doppelganger'); if (dg) becomeRole(r, dg, p.role); }
   const o = p.lover && r.players[p.lover];
   if (o && o.alive) kill(r, o, 'overcome by a broken heart (heartbreak)', hide);
 }
@@ -233,6 +244,7 @@ function attack(r, id, how, g) {
   const bg = livingBy(r, 'bodyguard')[0];
   if (bg && id === e.guard && bg !== v) return kill(r, bg, `killed protecting ${v.name}`);
   if (v.kevlar) { v.kevlar = false; return log(r, `${v.name} was attacked but survived thanks to body armor.`); }
+  if (r.set.mode === 'zombie' && g === 'mafia') { if (!v.infected) { v.infected = r.day; v.notes.push('You were bitten! You feel feverish...'); } return; }   // zombies infect instead of kill
   kill(r, v, how, g === 'mafia' && r.set.metro && control(r, 'docks') === 'mafia');   // Docks control: no crime scene until tomorrow
 }
 function endNight(r) {
@@ -257,6 +269,7 @@ function endNight(r) {
   if (r.shot && !bl('vigilante')) attack(r, r.shot, 'shot by the Vigilante', 'vigilante');
   if (r.sk && !bl('serialkiller')) attack(r, r.sk, 'killed in the night', 'serialkiller');
   if (r.wpoison && !bl('witch')) attack(r, r.wpoison, 'poisoned', 'witch');
+  if (r.set.mode === 'zombie') zombieMorning(r);
   if (r.duel) resolveDuel(r);
   if (!r.log.slice(before).some(l => /killed|shot|saved|poisoned|heartbreak|executed|survived/.test(l.text))) log(r, 'The night passed quietly. No one died.');
   if (r.silence && !bl('silencer') && r.players[r.silence]?.alive) { r.silenced = r.silence; log(r, `${r.players[r.silence].name} was silenced and cannot speak or vote today.`); }
@@ -286,6 +299,7 @@ function endDay(r) {
   const v = r.players[id];
   if (r.set.metro && (r.veto || {})[fac(v)]) { delete r.veto[fac(v)]; log(r, `Executive Veto! The guilty verdict against ${v.name} was thrown out.`); return startNight(r); }
   kill(r, v, `lynched by majority vote (${n} votes)`);
+  if (r.set.mode === 'zombie' && isM(v)) r.cure = Math.min(100, r.cure + 10);
   if (r.set.reveal) r.vh.push({ mafia: isM(v), voters: [...new Set([...Object.entries(r.votes).filter(([, tt]) => tt === id).map(([x]) => x), ...list(r).filter(q => q.id !== id && (mem(r, q.id).accused[id] || 0) > 0).map(q => q.id)])] });
   if (v.role === 'jester') { log(r, `${v.name} was the Jester and wins by being lynched!`); return finish(r, 'jester'); }
   if (checkWin(r)) return;
@@ -309,7 +323,7 @@ function saveHistory(r) {
   HIST = HIST.slice(0, 30);
   try { fs.writeFileSync(HFILE, JSON.stringify(HIST)); } catch (e) { /* read-only disk: history stays in memory */ }
 }
-function finish(r, winner) { r.winner = winner; setPhase(r, 'over'); r.awards = awards(r); saveHistory(r); if (r.set.coach) botCoach(r); emit(r); return true; }
+function finish(r, winner) { r.winner = winner; setPhase(r, 'over'); r.awards = awards(r); saveHistory(r); if (!r.tutorial) recordProfiles(r, winner); if (r.tour && !r.hub) setTimeout(() => tourTableDone(r), 5000); if (r.set.coach) botCoach(r); emit(r); return true; }
 function checkWin(r) {
   const lv = living(r);
   if (r.set.mode === 'team') {                        // a team loses when its Mafia (or all its players) are gone
@@ -319,6 +333,7 @@ function checkWin(r) {
     const w = rl && bl ? (by('red').length >= by('blue').length ? 'red' : 'blue') : rl ? 'blue' : 'red';
     log(r, `The ${w === 'red' ? 'Red' : 'Blue'} team wins! The rival team has no Mafia left.`); return finish(r, w);
   }
+  if (r.set.mode === 'zombie' && r.cure >= 100) { log(r, 'The cure is ready! The infection ends and the humans win.'); return finish(r, 'town'); }
   const pw = lv.find(p => p.role === 'pirate' && p.duels >= 2);
   if (pw) { log(r, `${pw.name} was the Pirate and won two duels. The Pirate wins!`); return finish(r, 'pirate'); }
   if (lv.some(p => p.role === 'plaguebearer') && lv.every(p => p.sick)) { log(r, 'The plague has spread to every living player. The Plaguebearer and the infected win!'); return finish(r, 'plague'); }
@@ -378,7 +393,7 @@ function doAct(r, p, msg = {}) {
       else if (type === 'silence' && R === 'silencer' && !r.fin.silencer && !isM(t)) { r.silence = target; r.fin.silencer = true; }
       else if (type === 'inspect' && R === 'detective' && !r.inspected && t !== p) {
         if (--r.insLeft <= 0) r.inspected = true;
-        p.notes.push(r.block === p.id ? `Night ${r.day}: You were distracted and learned nothing.` : (r.set.metro && r.jam[t.pos] && !p.smug) ? `Night ${r.day}: Signal jammed. You learned nothing.` : `Night ${r.day}: ${t.name} is ${(t.role === 'mafia' || t.role === 'silencer' || (r.set.metro && r.framed[t.id])) ? 'MAFIA' : 'Innocent'}.`);
+        p.notes.push(r.block === p.id ? `Night ${r.day}: You were distracted and learned nothing.` : (r.set.metro && r.jam[t.pos] && !p.smug) ? `Night ${r.day}: Signal jammed. You learned nothing.` : `Night ${r.day}: ${t.name} is ${inspectWord(r, t)}.`);
         r.insIdx = p.notes.length - 1;     // Godfather reads as Innocent
       } else return;
       if (r.set.metro) {
@@ -593,7 +608,7 @@ function mention(r, from, text) {
 function say(r, p, text) {
   if (!['day', 'lastwords'].includes(r.phase) || !p.alive || p.id === r.silenced || r.event === 'blackout') return;
   mem(r, p.id).today++;
-  r.chat.push({ name: p.name, text, ts: Date.now() }); r.msgs[p.id] = (r.msgs[p.id] || 0) + 1;
+  r.chat.push({ name: p.name, text: themed(p, text), ts: Date.now() }); r.msgs[p.id] = (r.msgs[p.id] || 0) + 1;
   mention(r, p, text); emit(r);
 }
 function score(r, p, q) {                       // how suspicious q looks to bot p, from PUBLIC information only
@@ -601,7 +616,8 @@ function score(r, p, q) {                       // how suspicious q looks to bot
   r.vh.forEach(h => { if (h.voters.includes(q.id)) v += h.mafia ? -3 : 3; });      // voted for someone later revealed innocent = suspicious
   const m = r.mem[q.id];
   if (m) { v += Math.min(3, m.silent) * 0.8; const l = m.voted.slice(-2); if (l.length === 2 && l[0].target && l[1].target && l[0].target !== l[1].target) v += 1; }   // silent for days, or flip-flopping votes
-  if (p.grudge === q.id) v += 2;                                                     // remembers who accused it
+  if (p.grudge === q.id) v += 2;
+  if (p.rivalOf === q.id) v += 1.5;                                                   // a rival keeps an eye on its human                                                     // remembers who accused it
   return v;
 }
 function botSay(r, p) {
@@ -702,9 +718,129 @@ function botDay(r) {
   const d = r.day, ms = Math.max(5000, r.set.day * 1000), ok = () => r.phase === 'day' && r.day === d;
   list(r).filter(p => p.bot && p.alive).forEach(p => {
     for (let i = 0; i < botMsgCount(r, p); i++) later(r, ms * (0.08 + Math.random() * 0.5), () => { if (ok()) botSay(r, p); });
+    if (p.rivalOf) later(r, ms * (0.08 + Math.random() * 0.14), () => { if (ok() && p.alive) rivalTalk(r, p); });
     if (isM(p)) later(r, ms * (0.15 + Math.random() * 0.25), () => { if (ok() && p.alive) botBluff(r, p); });
     later(r, ms * (0.6 + Math.random() * 0.25), () => { if (ok() && p.alive && !(p.id in r.votes)) { const tid = botVote(r, p); p.vlog = p.vlog || []; p.vlog.push({ day: r.day, target: tid, why: explain(r, p, tid) }); doAct(r, p, { type: 'vote', target: tid }); } });
   });
+}
+
+// ---------- doppelganger, zombies, themes, rivals ----------
+function inspectWord(r, t) {
+  if (r.set.mode === 'zombie') {
+    if (isM(t) || t.infected) r.cure = Math.min(100, r.cure + 10);
+    return isM(t) ? 'a ZOMBIE' : t.infected ? 'INFECTED' : 'Healthy';
+  }
+  return (t.role === 'mafia' || t.role === 'silencer' || (r.set.metro && r.framed[t.id])) ? 'MAFIA' : 'Innocent';
+}
+function zombieMorning(r) {                      // the Doctor can cure; the infected turn after two nights; the cure advances
+  const hl = r.eff && r.eff.heal && r.players[r.eff.heal];
+  if (hl && hl.alive && hl.infected && !isM(hl)) { hl.infected = 0; hl.notes.push('The Doctor cured you of the infection!'); livingBy(r, 'doctor').forEach(d => d.notes.push(`You cured ${hl.name}!`)); r.cure += 20; }
+  list(r).filter(p => p.alive && p.infected && !isM(p) && r.day - p.infected >= 2).forEach(p => {
+    p.infected = 0; p.role = 'mafia'; p.turnedDay = r.day; r.order = ORDER.filter(g => r.order.includes(g) || g === 'mafia');
+    log(r, `${p.name} has turned into a zombie!`);
+  });
+  r.cure = Math.min(100, r.cure + 10);
+}
+function themed(b, t) {
+  if (!b || Math.random() < 0.3) return t;
+  switch (b.theme) {
+    case 'detective': return pick(['Elementary. ', 'The facts are clear: ', 'I observe that ']) + t;
+    case 'pirate': return 'Arr, ' + t.replace(/\byou\b/gi, 'ye').replace(/\bmy\b/gi, 'me').replace(/\bI'm\b/g, 'I be') + pick(['', ' Savvy?', ' Yo ho!']);
+    case 'scientist': return pick(['Hypothesis: ', 'My data suggests: ', 'Statistically speaking, ']) + t;
+    case 'villain': return pick(['Mwahaha. ', 'How delightfully suspicious. ', 'Foolish mortals. ']) + t;
+    default: return t;
+  }
+}
+function makeBot(r) {
+  const used = list(r).map(p => p.name), theme = pick(THEMES);
+  const name = THEMENAMES[theme].map(n => 'Bot ' + n).find(n => !used.includes(n)) || 'Bot ' + Math.random().toString(36).slice(2, 5);
+  const id = 'bot' + Math.random().toString(36).slice(2, 8);
+  r.players[id] = { id, name, av: '🤖', cos: { frame: '', color: '' }, ready: true, alive: true, role: null, notes: [], whispers: [], connected: true, spectator: false, shots: 0, bot: true, persona: pick(PERSONAS), theme };
+  return r.players[id];
+}
+const PFILE = __dirname + '/profiles.json';
+let PROFILES = {}; try { PROFILES = JSON.parse(fs.readFileSync(PFILE, 'utf8')); } catch (e) { /* first run */ }
+function didWin(r, p, w) {
+  const x = p.role;
+  if (x === 'survivor' && p.alive) return true;
+  if (w === 'red' || w === 'blue') return p.team === w;
+  if (w === 'plague') return !!p.sick;
+  if (['jester', 'serialkiller', 'pirate'].includes(w)) return x === w;
+  if (w === 'mafia') return isM(p);
+  return !isM(p) && !['serialkiller', 'jester', 'pirate', 'plaguebearer'].includes(x);
+}
+function recordProfiles(r, w) {                   // remembered across games so rival bots can trash-talk
+  list(r).filter(p => !p.bot && !p.spectator && p.role).forEach(p => {
+    const m = r.mem[p.id] || { voted: [], silent: 0 }; let wrong = 0, right = 0;
+    m.voted.forEach(v => { const t = r.players[v.target]; if (t) (isM(t) ? right++ : wrong++); });
+    const pr = PROFILES[p.id] || { games: 0, wins: 0 }, won = didWin(r, p, w);
+    pr.games++; if (won) pr.wins++;
+    Object.assign(pr, { name: p.name, lastRole: p.role, lastWon: won, wrong, right, talk: r.msgs[p.id] || 0, silent: m.silent, diedDay: p.alive ? 0 : (p.diedDay || 0) });
+    PROFILES[p.id] = pr;
+  });
+  try { fs.writeFileSync(PFILE, JSON.stringify(PROFILES)); } catch (e) { /* read-only disk */ }
+}
+function rivalTalk(r, b) {
+  const h = r.players[b.rivalOf]; if (!h || !h.alive || (r.day > 1 && Math.random() > 0.35)) return;
+  const pr = PROFILES[h.id], n = h.name, L = [];
+  if (r.day === 1 && pr && pr.games) {
+    if (pr.lastWon === false) L.push(`Last time you were the ${pr.lastRole} and still lost, ${n}. Rough.`);
+    if (pr.wrong >= 2) L.push(`You voted the wrong person ${pr.wrong} times last game, ${n}. I counted.`);
+    if (pr.right >= 2) L.push(`${n} was annoyingly good at spotting Mafia last time. I am watching you.`);
+    if (pr.talk <= 3) L.push(`You barely said a word last game, ${n}. Planning something again?`);
+    if (pr.talk >= 15) L.push(`${n} talked nonstop last game. Please do not do that again.`);
+    if (pr.diedDay && pr.diedDay <= 2) L.push(`Dead by day ${pr.diedDay} last time, ${n}. Try surviving this round.`);
+    if (pr.wins >= 3) L.push(`${pr.wins} wins and counting, ${n}. Today is where it ends.`);
+  }
+  if (r.day === 1 && !(pr && pr.games)) L.push(`New face, ${n}. I will remember how you play.`);
+  if (r.day > 1) L.push((r.msgs[h.id] || 0) < 2 ? `Quiet again, ${n}? I noticed.` : `Still here, ${n}. I am keeping score.`);
+  if (L.length) say(r, b, pick(L));
+}
+
+// ---------- tournament night: rooms, bracket, final table ----------
+const TOURS = {};
+function tourView(r, me) {
+  const T = TOURS[r.tour]; if (!T) return null;
+  return { code: T.code, hub: !!r.hub, name: T.done ? 'Finished' : T.final ? 'Final' : T.round ? 'Round ' + T.round : 'Lobby', champion: T.champion, out: T.out.has(me.id), done: T.done,
+    tables: T.tables.map(tr => ({ label: tr.label, status: tr.phase === 'over' ? 'done' : 'playing', players: list(tr).filter(p => !p.bot && !p.spectator).map(p => p.name), here: tr.code === r.code })),
+    points: Object.values(T.points).sort((a, b) => b.pts - a.pts).slice(0, 8) };
+}
+const emitTour = T => { emit(T.hub); T.all.forEach(emit); };
+function seatRound(T, pids, spectators) {
+  const tablesN = Math.max(1, Math.ceil(pids.length / 6)), ids = shuffle([...pids]);
+  T.tables = []; T.pending = tablesN;
+  for (let i = 0; i < tablesN; i++) {
+    const seat = ids.filter((_, k) => k % tablesN === i), r2 = makeRoom(seat[0], '');
+    r2.set = JSON.parse(JSON.stringify(T.hub.set)); r2.tour = T.code; r2.label = T.final ? 'Final table' : 'Table ' + String.fromCharCode(65 + i);
+    rooms[r2.code] = r2; T.tables.push(r2); T.all.push(r2);
+    seat.forEach(id => T.movers[id] && T.movers[id](r2, false));
+    while (list(r2).length < Math.max(4, MODEMIN[r2.set.mode] || 4)) makeBot(r2);
+    setTimeout(() => startGame(r2), 3000);
+  }
+  if (spectators.length) setTimeout(() => spectators.forEach(id => T.movers[id] && T.movers[id](T.tables[0], true)), 4500);
+  emitTour(T);
+}
+function startTournament(T) {
+  const humans = list(T.hub).filter(p => !p.bot && p.connected);
+  T.round = 1; humans.forEach(p => { T.points[p.id] = { name: p.name, pts: 0 }; });
+  seatRound(T, humans.map(p => p.id), []);
+}
+function tourTableDone(r) {
+  const T = TOURS[r.tour]; if (!T || r.counted) return; r.counted = true;
+  list(r).filter(p => !p.bot && !p.spectator).forEach(p => { p.tourWon = didWin(r, p, r.winner); if (T.points[p.id]) T.points[p.id].pts += (p.tourWon ? 3 : 0) + (p.alive ? 1 : 0); });
+  if (--T.pending > 0) return emitTour(T);
+  const all = T.tables.flatMap(tr => list(tr).filter(p => !p.bot && !p.spectator)), win = all.filter(p => p.tourWon), pts = p => (T.points[p.id] ? T.points[p.id].pts : 0);
+  if (T.final) {
+    T.done = true; T.champion = (win.length ? win : [...all].sort((a, b) => pts(b) - pts(a)).slice(0, 1)).map(p => p.name);
+    T.tables.forEach(tr => log(tr, `🏆 Tournament champion${T.champion.length > 1 ? 's' : ''}: ${T.champion.join(', ')}!`));
+    return emitTour(T);
+  }
+  const adv = win.map(p => p.id);
+  [...all].sort((a, b) => pts(b) - pts(a)).forEach(p => { if (adv.length < 3 && !adv.includes(p.id)) adv.push(p.id); });
+  const out = all.map(p => p.id).filter(id => !adv.includes(id)); out.forEach(id => T.out.add(id));
+  T.round++;
+  setTimeout(() => { if (adv.length <= 6) { T.final = true; seatRound(T, adv, out); } else seatRound(T, adv, []); }, 8000);
+  emitTour(T);
 }
 
 // ---------- sockets ----------
@@ -715,13 +851,20 @@ io.on('connection', socket => {
   let bucket = { n: 0, t: Date.now() };
   const flood = () => { const now = Date.now(); if (now - bucket.t > 5000) bucket = { n: 0, t: now }; return ++bucket.n > 8; };
   const err = msg => socket.emit('err', msg);
-  const attach = (r, p) => { room = r; player = p; p.sid = socket.id; p.connected = true; socket.join(r.code); socket.emit('joined', { code: r.code }); emit(r); };
+  const attach = (r, p) => { room = r; player = p; p.sid = socket.id; p.connected = true; socket.join(r.code); socket.emit('joined', { code: r.code }); if (r.tour && TOURS[r.tour]) TOURS[r.tour].movers[p.id] = moveTo; emit(r); };
+  const moveTo = (r2, spectator) => {            // tournament: carry this socket's player into another room
+    const old = room, op = player; if (!op) return;
+    const np = mk(op.id, op.name, op.av, !!spectator); np.cos = op.cos; np.ready = true;
+    if (old) { socket.leave(old.code); delete old.players[op.id]; emit(old); }
+    r2.players[np.id] = np; attach(r2, np);
+  };
   const mk = (id, name, av, spectator) => ({ cos: { frame: '', color: '' }, ready: false, id, name, av: clean(av).slice(0, 4), alive: !spectator, role: null, notes: [], whispers: [], connected: true, spectator, shots: 0 });
-  const host = () => room && room.host === player.id;
+  const host = () => room && room.host === player.id && !(room.tour && !room.hub);
 
-  socket.on('create', ({ name, pid, av, pw, cos }) => {
+  socket.on('create', ({ name, pid, av, pw, cos, tour }) => {
     name = clean(name).slice(0, 16); if (!name) return err('Enter a name.');
     const r = makeRoom(pid, pw);
+    if (tour) { r.hub = true; r.tour = r.code; TOURS[r.code] = { code: r.code, hub: r, movers: {}, all: [], tables: [], round: 0, final: false, points: {}, out: new Set(), done: false, champion: null, pending: 0 }; }
     r.players[pid] = mk(pid, name, av, false); r.players[pid].cos = cleanCos(cos);
     rooms[r.code] = r; attach(r, r.players[pid]);
   });
@@ -768,27 +911,27 @@ io.on('connection', socket => {
   });
   socket.on('addbot', () => {
     if (!host() || room.phase !== 'lobby' || list(room).length >= MAX_PLAYERS) return;
-    const used = list(room).map(p => p.name), nm = BOTNAMES.map(n => 'Bot ' + n).find(n => !used.includes(n)) || 'Bot ' + Math.random().toString(36).slice(2, 5);
-    const id = 'bot' + Math.random().toString(36).slice(2, 8);
-    room.players[id] = { ...mk(id, nm, '🤖', false), bot: true, persona: pick(PERSONAS) };
+    makeBot(room);
     emit(room);
   });
   socket.on('cos', c => { if (player) { player.cos = cleanCos(c); emit(room); } });
   socket.on('ready', () => { if (room && room.phase === 'lobby' && !player.bot) { player.ready = !player.ready; emit(room); } });
-  socket.on('botconfig', ({ id, name, persona }) => {
+  socket.on('botconfig', ({ id, name, persona, theme }) => {
     const b = room && room.players[id];
     if (!host() || room.phase !== 'lobby' || !b || !b.bot) return;
     name = clean(name).slice(0, 16);
     if (name && !list(room).some(p => p.id !== id && p.name.toLowerCase() === name.toLowerCase())) b.name = name;
     if (PERSONAS.includes(persona)) b.persona = persona;
+    if (THEMES.includes(theme)) b.theme = theme;
     emit(room);
   });
   socket.on('start', () => {
     if (!host() || !['lobby', 'over'].includes(room.phase)) return;
-    const need = MODEMIN[room.set.mode] || MIN_PLAYERS;
+    const need = room.hub ? 3 : (MODEMIN[room.set.mode] || MIN_PLAYERS);
     if (list(room).length < need) return err(`This mode needs at least ${need} players.`);
     const waiting = list(room).filter(p => !p.bot && p.connected && p.id !== room.host && !p.ready);
     if (room.phase === 'lobby' && waiting.length) return err('Waiting for: ' + waiting.map(p => p.name).join(', '));
+    if (room.hub) { if (!TOURS[room.tour].round) startTournament(TOURS[room.tour]); return; }
     if (room.phase === 'over') reset(room);
     startGame(room);
   });
